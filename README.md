@@ -25,13 +25,14 @@ With no `.env`, the app runs in **this-device-only mode**: no login, data stays 
 2. In **SQL Editor**, paste all of [`supabase/schema.sql`](supabase/schema.sql) and run it.
 3. In **Authentication → Sign In / Providers**, turn off **Allow new users to sign up** so only the account you create can log in.
 4. In **Authentication → Users → Add user → Create new user**, enter the student's email and password and check **Auto Confirm User**.
-5. From **Project Settings → API**, copy the Project URL and the `anon` public key into `.env.local`:
+5. From **Connect → App Frameworks → React (Vite)**, copy the two values into `.env.local`:
    ```
    VITE_SUPABASE_URL=https://xxxx.supabase.co
-   VITE_SUPABASE_ANON_KEY=eyJ...
+   VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
    ```
+   (An older `anon` key in `VITE_SUPABASE_ANON_KEY` also works. Never use the secret / `service_role` key.)
 
-The anon key is meant to be public. Row Level Security limits every row to its owner.
+The publishable key is meant to be public. Row Level Security limits every row to its owner.
 
 ### Adding words for the student from the dashboard
 
@@ -40,7 +41,7 @@ In **Table Editor → custom_words → Insert row**, fill in `en`, `ko` and `dec
 ## Deploying to Vercel
 
 1. Push this repo to GitHub, then **Add New → Project** in Vercel and import it. Vercel detects Vite; leave the defaults (`npm run build`, output `dist`).
-2. Under **Settings → Environment Variables**, add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`, then redeploy.
+2. Under **Settings → Environment Variables**, add `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`, then redeploy.
 3. Send the URL to the student. On iPhone: Safari → Share → **Add to Home Screen**. On Android: Chrome → ⋮ → **Install app**.
 
 Every later `git push` redeploys automatically. If a content error slips in, `npm run build` fails, so a broken chapter never goes live.

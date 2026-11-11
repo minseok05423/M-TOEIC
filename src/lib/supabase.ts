@@ -2,7 +2,7 @@ import { createClient, type Session } from '@supabase/supabase-js'
 import { useEffect, useState } from 'react'
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
-const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+const key = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY) as string | undefined
 
 /** 환경 변수가 없으면 null → 이 기기(localStorage)에만 저장하는 모드 */
 export const supabase = url && key ? createClient(url, key) : null
