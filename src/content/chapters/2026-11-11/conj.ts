@@ -1,0 +1,142 @@
+import type { Lesson } from '../../types.ts'
+
+export const conj: Lesson = {
+  id: 'conj',
+  title: '접속사',
+  emoji: '🔗',
+  summary: '문장과 문장을 잇는 말. 뒤에 주어 + 동사가 온다!',
+  sections: [
+    {
+      heading: '접속사란?',
+      body: '접(接) + 속(續) = 둘 다 "잇다". **말과 말, 문장과 문장을 이어 주는 단어**예요.',
+      examples: [
+        { en: 'I like coffee and tea.', ko: '나는 커피와 차를 좋아한다.' },
+        { en: 'I was tired, but I went to work.', ko: '나는 피곤했지만 출근했다.' },
+      ],
+    },
+    {
+      heading: '두 종류의 접속사',
+      body: '**① 대등하게 잇기**: and 그리고 · but 그러나 · or 또는 · so 그래서 · yet 그렇지만\n**② 한쪽을 붙이기**: because · although · if · when · while …\n②번 접속사 뒤의 "주어 + 동사" 덩어리는 이유·조건·시간 같은 **꾸밈**이에요. [ ] 로 묶으면 뼈대가 보여요.',
+      examples: [
+        { en: '[Because it rained], the game was canceled.', ko: '뼈대: the game was canceled. (경기가 취소되었다)' },
+      ],
+    },
+    {
+      heading: '⭐ 토익 1순위: 접속사 vs 전치사',
+      body: '뜻이 같아도 **뒤에 오는 모양**이 달라요.\n**빈칸 뒤에 주어 + 동사 → 접속사 / 명사만 → 전치사**',
+      table: [
+        ['뜻', '접속사 (+주어+동사)', '전치사 (+명사)'],
+        ['~ 때문에', 'because, since, as', 'because of, due to'],
+        ['~에도 불구하고', 'although, though, even though', 'despite, in spite of'],
+        ['~ 동안', 'while', 'during, for'],
+        ['~하지 않으면 / ~ 없이', 'unless', 'without'],
+        ['~ 전에 / 후에 / 까지', 'before, after, until', 'before, after, until (둘 다 OK)'],
+      ],
+      examples: [
+        { en: 'Because it rained, …', ko: 'it rained = 주어 + 동사 → 접속사 because' },
+        { en: 'Because of the rain, …', ko: 'the rain = 명사 → 전치사 because of' },
+      ],
+    },
+    {
+      heading: '짝꿍 접속사',
+      body: '짝이 정해져 있어요. **앞 짝을 보면 뒤 짝이 정답!**\n- both A and B : A와 B 둘 다\n- either A or B : A 또는 B (둘 중 하나)\n- neither A nor B : A도 B도 아닌\n- not only A but (also) B : A뿐만 아니라 B도\n- whether A or B : A이든 B이든',
+    },
+    {
+      heading: '"~라는 것", "~인지" : that / whether',
+      body: '문장 전체를 **명사 덩어리**로 만들어요.\n- I think **that** the plan is good. (그 계획이 좋다는 것을 → 좋다고 생각한다)\n- I don\'t know **whether** he will come. (그가 올지 안 올지)',
+    },
+  ],
+  words: [
+    { group: '대등하게 잇기', en: 'and', ko: '그리고, ~와', ex: { en: 'I bought a pen and a notebook.', ko: '나는 펜과 공책을 샀다.' } },
+    { group: '대등하게 잇기', en: 'but', ko: '그러나', ex: { en: 'The room is small but clean.', ko: '방은 작지만 깨끗하다.' } },
+    { group: '대등하게 잇기', en: 'or', ko: '또는, 아니면', ex: { en: 'Would you like tea or coffee?', ko: '차 드릴까요, 커피 드릴까요?' } },
+    { group: '대등하게 잇기', en: 'so', ko: '그래서', ex: { en: 'It was late, so I took a taxi.', ko: '늦어서 택시를 탔다.' } },
+    { group: '대등하게 잇기', en: 'yet', ko: '그렇지만', ex: { en: 'The plan is simple, yet effective.', ko: '그 계획은 간단하지만 효과적이다.' } },
+
+    { group: '이유·양보', en: 'because', ko: '~ 때문에', ex: { en: 'I stayed home because I was sick.', ko: '아파서 집에 있었다.' }, tip: '뒤에 주어+동사. 명사면 because of' },
+    { id: 'since-conj', group: '이유·양보', en: 'since', ko: '~ 때문에; ~ 이후로', ex: { en: 'Since it is late, let\'s go home.', ko: '늦었으니 집에 가자.' } },
+    { group: '이유·양보', en: 'as', ko: '~ 때문에; ~할 때; ~처럼', ex: { en: 'As it was raining, we stayed inside.', ko: '비가 와서 우리는 안에 있었다.' } },
+    { group: '이유·양보', en: 'now that', ko: '이제 ~이니까', ex: { en: 'Now that the project is over, we can relax.', ko: '이제 프로젝트가 끝났으니 쉴 수 있다.' } },
+    { group: '이유·양보', en: 'although', ko: '비록 ~이지만', ex: { en: 'Although it was cold, he went out.', ko: '추웠지만 그는 밖에 나갔다.' }, tip: '뒤에 주어+동사. 명사면 despite' },
+    { group: '이유·양보', en: 'though', ko: '비록 ~이지만', ex: { en: 'Though he is young, he is very skilled.', ko: '그는 어리지만 매우 능숙하다.' } },
+    { group: '이유·양보', en: 'even though', ko: '비록 ~이지만 (강조)', ex: { en: 'Even though I left early, I was late.', ko: '일찍 나왔는데도 늦었다.' } },
+    { group: '이유·양보', en: 'even if', ko: '설령 ~하더라도', ex: { en: 'Even if it rains, the event will go on.', ko: '비가 오더라도 행사는 진행된다.' } },
+    { group: '이유·양보', en: 'while', ko: '~하는 동안; ~인 반면', ex: { en: 'Please wait while I check.', ko: '제가 확인하는 동안 기다려 주세요.' }, tip: '뒤에 주어+동사. 명사면 during' },
+    { group: '이유·양보', en: 'whereas', ko: '~인 반면에', ex: { en: 'I like tea, whereas my wife likes coffee.', ko: '나는 차를 좋아하는 반면 아내는 커피를 좋아한다.' } },
+
+    { id: 'when-conj', group: '시간·조건', en: 'when', ko: '~할 때', ex: { en: 'Call me when you arrive.', ko: '도착하면 전화해.' } },
+    { group: '시간·조건', en: 'whenever', ko: '~할 때마다; 언제든지', ex: { en: 'Visit us whenever you want.', ko: '원할 때 언제든지 방문하세요.' } },
+    { group: '시간·조건', en: 'once', ko: '일단 ~하면, ~하자마자', ex: { en: 'Once you sign up, you can use the service.', ko: '일단 가입하면 서비스를 이용할 수 있다.' } },
+    { group: '시간·조건', en: 'as soon as', ko: '~하자마자', ex: { en: 'I will call you as soon as I arrive.', ko: '도착하자마자 전화할게.' } },
+    { group: '시간·조건', en: 'if', ko: '만약 ~하면; ~인지', ex: { en: 'If you have questions, ask me.', ko: '질문이 있으면 물어보세요.' } },
+    { group: '시간·조건', en: 'unless', ko: '~하지 않으면 (= if ~ not)', ex: { en: 'Unless you hurry, you will miss the bus.', ko: '서두르지 않으면 버스를 놓칠 거야.' } },
+    { group: '시간·조건', en: 'as long as', ko: '~하기만 하면, ~하는 한', ex: { en: 'You can stay as long as you are quiet.', ko: '조용히만 하면 있어도 돼요.' } },
+    { group: '시간·조건', en: 'in case', ko: '~할 경우에 대비해서', ex: { en: 'Take an umbrella in case it rains.', ko: '비가 올 경우에 대비해 우산을 가져가.' } },
+    { group: '시간·조건', en: 'so that', ko: '~하도록 (목적)', ex: { en: 'Speak loudly so that everyone can hear.', ko: '모두가 들을 수 있도록 크게 말하세요.' } },
+
+    { group: '짝꿍·명사절', en: 'both A and B', id: 'both-and', ko: 'A와 B 둘 다', ex: { en: 'Both Tom and Amy came.', ko: '톰과 에이미 둘 다 왔다.' } },
+    { group: '짝꿍·명사절', en: 'either A or B', id: 'either-or', ko: 'A 또는 B (둘 중 하나)', ex: { en: 'You can pay either by cash or by card.', ko: '현금이나 카드 중 하나로 결제할 수 있다.' } },
+    { group: '짝꿍·명사절', en: 'neither A nor B', id: 'neither-nor', ko: 'A도 B도 아닌', ex: { en: 'Neither Tom nor Amy came.', ko: '톰도 에이미도 오지 않았다.' } },
+    { group: '짝꿍·명사절', en: 'not only A but (also) B', id: 'not-only', ko: 'A뿐만 아니라 B도', ex: { en: 'He is not only kind but also smart.', ko: '그는 친절할 뿐만 아니라 똑똑하다.' } },
+    { group: '짝꿍·명사절', en: 'whether', ko: '~인지 (아닌지); ~이든 아니든', ex: { en: "I don't know whether he will come.", ko: '그가 올지 모르겠다.' } },
+    { id: 'that-conj', group: '짝꿍·명사절', en: 'that', ko: '~라는 것', ex: { en: 'I think that the plan is good.', ko: '나는 그 계획이 좋다고 생각한다.' }, tip: '관계대명사 that 과 구별! (관계대명사 레슨 참고)' },
+  ],
+  sentences: [
+    {
+      id: 'c1',
+      text: '[Because|CONJ|뒤에 주어+동사 (it rained) → 접속사] [it|s] [rained|v] [heavily|adv], [the game|S] [was canceled|V].',
+      ko: '비가 많이 와서 경기가 취소되었다.',
+      slash: 'Because it rained heavily, / the game was canceled.',
+      note: '뼈대: The game was canceled.',
+    },
+    {
+      id: 'c2',
+      text: '[Although|CONJ|비록 ~이지만] [the price|s] [is|v] [high|c], [many customers|S] [buy|V] [this product|O].',
+      ko: '가격이 비싸지만 많은 고객이 이 제품을 산다.',
+      slash: 'Although the price is high, / many customers buy this product.',
+    },
+    {
+      id: 'c3',
+      text: '[Please|ADV] [call|V] [me|O] [as soon as|CONJ|~하자마자] [you|s] [arrive|v] [at|PREP] the airport.',
+      ko: '공항에 도착하자마자 저에게 전화 주세요.',
+      slash: 'Please call me / as soon as you arrive / at the airport.',
+    },
+    {
+      id: 'c4',
+      text: '[The office|S] [will|MOD] [close|V] [early|ADV] [today|ADV] [so that|CONJ|~하도록 (목적)] [employees|s] [can|mod] [attend|v] [the event|o].',
+      ko: '직원들이 행사에 참석할 수 있도록 사무실은 오늘 일찍 문을 닫을 것이다.',
+      slash: 'The office will close early today / so that employees can attend the event.',
+    },
+    {
+      id: 'c5',
+      text: '[You|S] [can|MOD] [pay|V] [either|CONJ|짝꿍: either A or B] [by|PREP] cash [or|CONJ] [by|PREP] credit card.',
+      ko: '현금이나 신용카드 중 하나로 결제할 수 있습니다.',
+      slash: 'You can pay / either by cash / or by credit card.',
+    },
+    {
+      id: 'c6',
+      text: '[I|S] [think|V] [that|CONJ|~라는 것. that 뒤 문장 전체가 think 의 목적어] [the new design|s] [looks|v] [great|c].',
+      ko: '나는 새 디자인이 멋져 보인다고 생각한다.',
+      slash: 'I think / that the new design looks great.',
+    },
+    {
+      id: 'c7',
+      text: '[Unless|CONJ|~하지 않으면 (= if ~ not)] [you|s] [have|v] [a reservation|o], [you|S] [cannot|MOD] [enter|V] [the restaurant|O].',
+      ko: '예약을 하지 않으면 식당에 들어갈 수 없습니다.',
+      slash: 'Unless you have a reservation, / you cannot enter the restaurant.',
+    },
+  ],
+  quiz: [
+    { type: 'mc', id: 'q1', q: '____ it was raining, we went hiking.', choices: ['Despite', 'Although', 'Because of', 'During'], answer: 1, explain: '뒤에 주어+동사(it was raining) → 접속사. 뜻은 "~이지만" → Although.', ko: '비가 오고 있었지만 우리는 하이킹을 갔다.' },
+    { type: 'mc', id: 'q2', q: 'The event was postponed ____ the storm.', choices: ['because', 'because of', 'although', 'while'], answer: 1, explain: '뒤에 명사(the storm)만 → 전치사 because of.', ko: '폭풍 때문에 행사가 연기되었다.' },
+    { type: 'mc', id: 'q3', q: '____ the meeting, please turn off your phones.', choices: ['While', 'During', 'Although', 'If'], answer: 1, explain: '뒤에 명사(the meeting) → 전치사 During. While 은 접속사.', ko: '회의 중에는 휴대폰을 꺼 주세요.' },
+    { type: 'mc', id: 'q4', q: 'Please wait here ____ I get your order.', choices: ['during', 'while', 'despite', 'due to'], answer: 1, explain: '뒤에 주어+동사(I get) → 접속사 while (~하는 동안).', ko: '제가 주문하신 것을 가져오는 동안 여기서 기다려 주세요.' },
+    { type: 'mc', id: 'q5', q: 'You can choose ____ the blue one or the red one.', choices: ['both', 'either', 'neither', 'not only'], answer: 1, explain: '뒤에 or 가 있음 → 짝꿍 either A or B.', ko: '파란 것이나 빨간 것 중 하나를 고를 수 있어요.' },
+    { type: 'mc', id: 'q6', q: 'The workshop is useful for both new employees ____ managers.', choices: ['or', 'nor', 'and', 'but'], answer: 2, explain: 'both 가 있음 → 짝꿍 both A and B.', ko: '그 워크숍은 신입 직원과 관리자 모두에게 유용하다.' },
+    { type: 'mc', id: 'q7', q: '____ you have any questions, please contact me.', choices: ['If', 'Unless', 'Although', 'Despite'], answer: 0, explain: '"질문이 있으면" → If. Unless 는 "~하지 않으면" 이라 뜻이 반대예요.', ko: '질문이 있으시면 연락 주세요.' },
+    { type: 'mc', id: 'q8', q: 'I was very tired, ____ I went to bed early.', choices: ['so', 'but', 'or', 'because of'], answer: 0, explain: '피곤했다 → 그래서 일찍 잤다 → so.', ko: '나는 너무 피곤해서 일찍 잤다.' },
+    { type: 'tap', id: 'q9', prompt: '접속사를 고르세요.', text: 'We stayed inside *because* it was too cold.', explain: 'because + it was (주어+동사) → 접속사.', ko: '너무 추워서 우리는 안에 있었다.' },
+    { type: 'tap', id: 'q10', prompt: '접속사를 고르세요.', text: 'Mr. Kim was late *although* he left home early.', explain: 'although + he left (주어+동사) → 접속사.', ko: '김 씨는 집에서 일찍 나왔지만 늦었다.' },
+    { type: 'mc', id: 'q11', q: '빈칸 뒤에 "주어 + 동사"가 있을 때 들어갈 수 있는 것은?', choices: ['despite', 'due to', 'although', 'during'], answer: 2, explain: 'although 만 접속사예요. 나머지 셋은 전치사 (뒤에 명사).' },
+  ],
+}
