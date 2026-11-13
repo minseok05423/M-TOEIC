@@ -461,13 +461,17 @@ async function wordsAdd(user: User) {
     if (pos.length > 30) die(`${i + 1}번째 줄 품사가 너무 길어요: ${pos}`)
     return { en, pos: pos || null, ko }
   })
-  const have = new Map((await myWords(user.id)).map((w) => [normEn(w.en), w]))
+  const existing = await myWords(user.id)
+  const have = new Map(existing.map((w) => [normEn(w.en), w]))
   const fresh = rows.filter((r) => !have.has(normEn(r.en)))
   const skipped = rows.filter((r) => have.has(normEn(r.en)))
   const dup = fresh.filter((r, i) => fresh.findIndex((x) => normEn(x.en) === normEn(r.en)) !== i)
   if (dup.length) die(`파일 안에 같은 단어가 두 번: ${dup.map((r) => r.en).join(', ')}`)
-  // 그날 밤 9시(한국 시간)부터 1초씩: 단어장에서 파일 순서대로 보이게
-  const base = Date.parse(`${date}T21:00:00+09:00`)
+  // 그날 밤 9시(한국 시간)부터 1초씩: 단어장에서 파일 순서대로 보이게.
+  // 같은 날 이미 넣은 단어가 있으면 그 뒤로 (추가 단어가 앞 단어 사이에 끼지 않게)
+  const sameDay = existing.filter((w) => kday(w.created_at) === date).map((w) => Date.parse(w.created_at))
+  const base = Math.max(Date.parse(`${date}T21:00:00+09:00`), ...sameDay.map((t) => t + 1000))
+  if (kday(base + rows.length * 1000) !== date) die(`${date} 에 넣을 시간이 모자라요 (그날 단어가 너무 많아요)`)
   const now = new Date().toISOString()
   if (fresh.length) {
     const { error } = await db.from('custom_words').insert(
