@@ -8,6 +8,7 @@ import { distractors, shuffle } from '../lib/game.ts'
 import { useImmersive } from '../lib/ui.ts'
 import { RunHead } from './RunHead.tsx'
 import { Speak } from './Speak.tsx'
+import { Meaning } from './Pos.tsx'
 
 type Kind = 'en2ko' | 'ko2en' | 'listen'
 type Step =
@@ -171,7 +172,9 @@ function Intro({ w, onNext }: { w: StudyWord; onNext: () => void }) {
           <Speak text={w.en} />
         </div>
         <p className="ic-ko">
-          <mark>{w.ko}</mark>
+          <mark>
+            <Meaning ko={w.ko} pos={w.pos} />
+          </mark>
         </p>
         {w.ex && (
           <div className="ic-ex">
@@ -250,7 +253,7 @@ function Feedback({ step, ok, onNext }: { step: Extract<Step, { t: 'q' }>; ok: b
           <b>{ok ? '맞았어요' : '정답은'}</b>
           {!ok && (
             <span>
-              <span className="en-serif">{w.en}</span> = {w.ko}
+              <span className="en-serif">{w.en}</span> = <Meaning ko={w.ko} pos={w.pos} />
             </span>
           )}
         </div>

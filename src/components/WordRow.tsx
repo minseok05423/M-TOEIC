@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Lightbulb, Pencil, Star } from 'lucide-react'
 import { MAX_BOX } from '../lib/srs.ts'
 import { Speak } from './Speak.tsx'
+import { Meaning } from './Pos.tsx'
 
 export function HideKoSwitch({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -26,6 +27,7 @@ function Meter({ box, title }: { box: number; title?: string }) {
 export function WordRow({
   en,
   ko,
+  pos,
   tip,
   ex,
   level,
@@ -37,6 +39,7 @@ export function WordRow({
 }: {
   en: string
   ko: string
+  pos?: string
   tip?: string
   ex?: { en: string; ko: string }
   level?: string
@@ -55,7 +58,7 @@ export function WordRow({
         <Speak text={en} />
         <div className="word-text">
           <b className="word-en en-serif">{en}</b>
-          <span className={`word-ko ${shown ? '' : 'hidden'}`}>{shown ? ko : '탭해서 보기'}</span>
+          <span className={`word-ko ${shown ? '' : 'hidden'}`}>{shown ? <Meaning ko={ko} pos={pos} /> : '탭해서 보기'}</span>
         </div>
         {box !== undefined && <Meter box={box} title={level} />}
         {onStar && (

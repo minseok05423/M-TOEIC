@@ -21,7 +21,7 @@ The schema lives in [`src/content/types.ts`](src/content/types.ts); today's chap
 
 **Explanations.** In `sections[].body`, a line starting with `💡 ` renders as a tip box and `⚠️ ` as a warning box; don't put other emoji in the text (the app uses icons, not emoji). `emoji` on a lesson is kept in the schema but not shown.
 
-**Words.** The `group` field drives the headings in the word tab. If the same English word already exists in an earlier lesson with a *different* meaning, give it an explicit `id` (e.g. `'since-conj'`); otherwise the two share one review record. The checker warns about this.
+**Words.** Give every new word a `pos` (part of speech, in Korean: 동사, 명사, 형용사, 부사, 전치사, 접속사, 숙어). If the meanings have different parts of speech, split both with ` / ` in the same order: `ko: '그늘지게 하다 / 그늘'`, `pos: '동사 / 명사'`. The app then tags each meaning separately. The `group` field drives the headings in the word tab. If the same English word already exists in an earlier lesson with a *different* meaning, give it an explicit `id` (e.g. `'since-conj'`); otherwise the two share one review record. The checker warns about this.
 
 **Sentence markup** (`sentences[].text`):
 

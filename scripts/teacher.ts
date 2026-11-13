@@ -11,11 +11,16 @@
  *   progress [--days 14] [--user 이메일]   진도: 공부한 날, 레슨 단계·퀴즈 점수, 넣은 단어 수, 복습 상태, 테스트 요약
  *   tests [--days 7] [--user 이메일]       단어 테스트: 날마다 점수, 틀린 단어, 자주 틀리는 단어
  *   star <영어 단어> [...] [--off]          학생 단어에 ★중요 표시 (다음 테스트 복습 칸에 먼저 나옴)
+ *   words [--deck 이름]                    학생 단어장 (묶음별, 품사 없는 단어 표시)
+ *   words add <파일> --deck 이름 [--date YYYY-MM-DD]
+ *                                         단어 넣기. 파일 한 줄: 영어 | 품사 | 뜻   (예: shade | 동사 / 명사 | 그늘지게 하다 / 그늘)
+ *                                         --date 는 단어 테스트가 "그날 넣은 단어"로 보는 날짜 (기본: 오늘). 이미 있는 영어 단어는 건너뜀
+ *   words pos "영어=품사" [...]             품사 고치기 (예: words pos "place=동사 / 명사")
  *
  * .env.local 에 SUPABASE_SECRET_KEY (대시보드 → Project Settings → API Keys → Secret key) 가 있어야 해요.
  * 이 키는 RLS 를 건너뛰는 관리자 키라서 VITE_ 를 붙이면 안 되고(앱에 들어감), 화면에도 출력하지 않아요.
  */
-import { existsSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve, basename } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createClient, type User } from '@supabase/supabase-js'
@@ -401,6 +406,100 @@ async function star() {
   if (missing.length) console.log(`  학생 단어장에 없는 단어: ${missing.join(', ')}`)
 }
 
-const commands: Record<string, () => Promise<void>> = { notes, push, done, chapters, pull, rm, users, progress, tests, star }
+interface MyWord {
+  id: string
+  en: string
+  ko: string
+  pos: string | null
+  deck: string
+  important: boolean
+  created_at: string
+}
+
+async function myWords(userId: string): Promise<MyWord[]> {
+  const { data, error } = await db
+    .from('custom_words')
+    .select('id, en, ko, pos, deck, important, created_at')
+    .eq('user_id', userId)
+    .eq('deleted', false)
+    .order('created_at')
+  if (error) die(error.message)
+  return data as MyWord[]
+}
+
+const normEn = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
+
+async function words() {
+  const sub = args[0]
+  const user = await pickUser()
+  if (sub === 'add') return wordsAdd(user)
+  if (sub === 'pos') return wordsPos(user)
+  if (sub) die(`words 다음에는 add | pos 또는 아무것도 없이 (목록)`)
+  const list = (await myWords(user.id)).filter((w) => !flag('deck') || w.deck === flag('deck'))
+  if (!list.length) return console.log('단어가 없어요.')
+  const decks = new Map<string, MyWord[]>()
+  for (const w of list) decks.set(w.deck, [...(decks.get(w.deck) ?? []), w])
+  console.log(`# ${user.email} 단어장 ${list.length}개 (품사 없음 ${list.filter((w) => !w.pos).length})\n`)
+  for (const [deck, ws] of decks) {
+    const days = [...new Set(ws.map((w) => kday(w.created_at)))].map(md).join(', ')
+    console.log(`## ${deck} · ${ws.length}개 (넣은 날 ${days})`)
+    for (const w of ws) console.log(`- ${w.important ? '★ ' : ''}${w.en} [${w.pos ?? '품사 없음'}] ${w.ko}`)
+    console.log()
+  }
+}
+
+async function wordsAdd(user: User) {
+  const file = args[1] ?? die('파일을 주세요: npm run teacher -- words add <파일> --deck 1일차')
+  const deck = flag('deck') ?? die('--deck 묶음이름 이 필요해요 (예: --deck 3일차)')
+  const date = flag('date') ?? kday()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) die(`--date 는 YYYY-MM-DD: ${date}`)
+  if (!existsSync(file)) die(`파일 없음: ${file}`)
+  const lines = readFileSync(file, 'utf8').split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'))
+  const rows = lines.map((l, i) => {
+    const [en, pos, ko, ...extra] = l.split('|').map((x) => x.trim())
+    if (!en || !ko || extra.length) die(`${i + 1}번째 줄 형식이 달라요 (영어 | 품사 | 뜻): ${l}`)
+    if (pos.length > 30) die(`${i + 1}번째 줄 품사가 너무 길어요: ${pos}`)
+    return { en, pos: pos || null, ko }
+  })
+  const have = new Map((await myWords(user.id)).map((w) => [normEn(w.en), w]))
+  const fresh = rows.filter((r) => !have.has(normEn(r.en)))
+  const skipped = rows.filter((r) => have.has(normEn(r.en)))
+  const dup = fresh.filter((r, i) => fresh.findIndex((x) => normEn(x.en) === normEn(r.en)) !== i)
+  if (dup.length) die(`파일 안에 같은 단어가 두 번: ${dup.map((r) => r.en).join(', ')}`)
+  // 그날 밤 9시(한국 시간)부터 1초씩: 단어장에서 파일 순서대로 보이게
+  const base = Date.parse(`${date}T21:00:00+09:00`)
+  const now = new Date().toISOString()
+  if (fresh.length) {
+    const { error } = await db.from('custom_words').insert(
+      fresh.map((r, i) => ({ user_id: user.id, en: r.en, ko: r.ko, pos: r.pos, deck, created_at: new Date(base + i * 1000).toISOString(), updated_at: now })),
+    )
+    if (error) die(error.message)
+  }
+  console.log(`✓ ${user.email} 의 "${deck}" 에 ${fresh.length}개 넣음 (${date} 단어로)`)
+  if (skipped.length) console.log(`  이미 있어서 건너뜀 ${skipped.length}개: ${skipped.map((r) => `${r.en} (${have.get(normEn(r.en))!.deck})`).join(', ')}`)
+  console.log('  학생 앱은 다음에 열 때(또는 설정 → 지금 동기화) 받아요.')
+}
+
+async function wordsPos(user: User) {
+  const pairs = args.slice(1).map((a) => {
+    const i = a.indexOf('=')
+    if (i < 1) die(`"영어=품사" 형식으로: ${a}`)
+    return { en: a.slice(0, i), pos: a.slice(i + 1).trim() }
+  })
+  if (!pairs.length) die('예: npm run teacher -- words pos "place=동사 / 명사"')
+  const have = new Map((await myWords(user.id)).map((w) => [normEn(w.en), w]))
+  for (const p of pairs) {
+    const w = have.get(normEn(p.en))
+    if (!w) {
+      console.log(`  없는 단어: ${p.en}`)
+      continue
+    }
+    const { error } = await db.from('custom_words').update({ pos: p.pos || null }).eq('id', w.id)
+    if (error) die(error.message)
+    console.log(`✓ ${w.en}: ${w.pos ?? '없음'} → ${p.pos || '없음'}`)
+  }
+}
+
+const commands: Record<string, () => Promise<void>> = { notes, push, done, chapters, pull, rm, users, progress, tests, star, words }
 const run = commands[cmd ?? ''] ?? (() => die(`명령: ${Object.keys(commands).join(' | ')}  (자세한 건 scripts/teacher.ts 맨 위)`))
 await run()

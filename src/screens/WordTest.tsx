@@ -14,6 +14,7 @@ import { RunHead } from '../components/RunHead.tsx'
 import { GameDone } from '../components/GameDone.tsx'
 import { Speak } from '../components/Speak.tsx'
 import { WordRow } from '../components/WordRow.tsx'
+import { Meaning, PosTag } from '../components/Pos.tsx'
 
 const partScore = (t: Test, part: WordTestItem['part']) => {
   const xs = t.items.filter((x) => x.part === part)
@@ -171,7 +172,7 @@ function WrongList({ items }: { items: WordTestItem[] }) {
       <h3 className="group-title">다시 볼 단어 · {items.length}</h3>
       <ul className="word-list">
         {items.map((x) => (
-          <WordRow key={x.key} en={x.en} ko={x.ko} level={x.skip ? '모르겠어요' : '틀림'} />
+          <WordRow key={x.key} en={x.en} ko={x.ko} pos={x.pos} level={x.skip ? '모르겠어요' : '틀림'} />
         ))}
       </ul>
     </section>
@@ -197,7 +198,7 @@ function TestRun({ items, pool, onDone }: { items: PlannedItem[]; pool: StudyWor
     if (picked !== null) return
     setPicked(i)
     const right = i >= 0 && q.choices[i] === q.w
-    results.current.push({ key: q.w.key, en: q.w.en, ko: q.w.ko, part: q.part, why: q.why, ok: right, skip: i < 0 || undefined })
+    results.current.push({ key: q.w.key, en: q.w.en, ko: q.w.ko, pos: q.w.pos, part: q.part, why: q.why, ok: right, skip: i < 0 || undefined })
     reviewWord(q.w.key, right)
     if (right) {
       sfx.right()
@@ -237,6 +238,7 @@ function TestRun({ items, pool, onDone }: { items: PlannedItem[]; pool: StudyWor
             <span className="en-serif">{q.w.en}</span>
             <Speak text={q.w.en} />
           </div>
+          <PosTag pos={q.w.pos} />
         </div>
         <div className="choices ko">
           {q.choices.map((c, i) => {
@@ -265,7 +267,7 @@ function TestRun({ items, pool, onDone }: { items: PlannedItem[]; pool: StudyWor
               <b>{ok ? '맞았어요' : picked! < 0 ? '괜찮아요, 정답은' : '정답은'}</b>
               {!ok && (
                 <span>
-                  <span className="en-serif">{q.w.en}</span> = {q.w.ko}
+                  <span className="en-serif">{q.w.en}</span> = <Meaning ko={q.w.ko} pos={q.w.pos} />
                 </span>
               )}
             </div>

@@ -169,3 +169,12 @@ revoke all on public.word_tests from anon, authenticated;
 grant select, insert on public.word_tests to authenticated;
 
 notify pgrst, 'reload schema';
+
+-- 10) 단어 품사 ('동사', '동사 / 명사'). 뜻마다 다르면 ko 와 같은 순서로 ' / ' 로 나눔
+alter table public.custom_words add column if not exists pos text;
+do $$ begin
+  alter table public.custom_words add constraint custom_words_pos_len check (pos is null or char_length(pos) <= 30);
+exception when duplicate_object then null;
+end $$;
+
+notify pgrst, 'reload schema';

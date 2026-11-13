@@ -2835,3 +2835,42 @@ body.sheet-open {
   fill: currentColor;
   stroke: var(--edge);
 }
+
+/* ───────── 품사 ───────── */
+.pos {
+  display: inline-block;
+  margin-right: 2px;
+  padding: 0 5px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  font-size: 0.72em;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--muted);
+  vertical-align: 0.12em;
+  white-space: nowrap;
+}
+mark .pos {
+  border-color: currentColor;
+  color: inherit;
+  opacity: 0.75;
+}
+.pos-part + .pos-part::before {
+  content: '  ';
+  white-space: pre;
+}
+.q-stage > .pos {
+  align-self: center;
+  margin-top: -6px;
+  font-size: 0.85rem;
+}
+.form .field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.form .field-label {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--ink-2);
+}

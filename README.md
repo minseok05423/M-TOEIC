@@ -66,6 +66,10 @@ Each question shows the English word with four meanings to pick from, plus a **�
 
 ★ important can be set by the student (word list or word form) or by you (`npm run teacher -- star <word>`).
 
+Every word can carry a part of speech (`pos`: 동사, 명사, …), shown as a tag before the meaning. When the meanings differ in part of speech, both are split with ` / ` in the same order (`그늘지게 하다 / 그늘` with `동사 / 명사`), and each meaning gets its own tag. The student picks 품사 chips in the word form, or writes `hold - (동) 들다` when pasting several words.
+
+When the teacher hands you a word list, put it straight into the student's word book. Write one line per word as `english | 품사 | 뜻` and run `npm run teacher -- words add <file> --deck 3일차 --date YYYY-MM-DD`. The date is the day the test treats as "words added that day". Words already in the book are skipped.
+
 ## Student notes → personal lessons
 
 The student can leave a note from any lesson: the **메모** button in every stage header (the current card, word, sentence or question is picked for them), **왜 틀렸는지 모르겠다면** after a wrong quiz answer, or **내 메모** at the bottom of the lesson page. The form is fixed, not free text:
@@ -85,6 +89,9 @@ npm run teacher -- chapters | pull <id> | rm <id> | users
 npm run teacher -- progress [--days 14]   # study days, lesson stages and quiz scores, words added per day, review state, test summary
 npm run teacher -- tests [--days 7]       # each word test: score, missed words; words missed twice or more
 npm run teacher -- star postpone "in advance" [--off]   # mark the student's words as important
+npm run teacher -- words [--deck 1일차]                  # the student's word book by deck; flags words with no 품사
+npm run teacher -- words add day3.txt --deck 3일차 [--date 2026-11-14]   # add words (line: english | 품사 | 뜻)
+npm run teacher -- words pos "place=동사 / 명사"        # fix a word's 품사
 ```
 
 The script needs `SUPABASE_SECRET_KEY=sb_secret_...` in `.env.local` (Project Settings → API Keys → Secret keys). The key bypasses Row Level Security, so it stays on your machine; the script never prints it. `push` runs the same checks as the build and uploads nothing if one fails. The app checks each personal chapter again and skips any broken one. No redeploy is needed: the student gets new chapters on the next sync.

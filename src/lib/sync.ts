@@ -51,6 +51,7 @@ interface WordRow {
   id: string
   en: string
   ko: string
+  pos: string | null
   ex_en: string | null
   ex_ko: string | null
   tip: string | null
@@ -65,6 +66,7 @@ const toWord = (r: WordRow): CustomWord => ({
   id: r.id,
   en: r.en,
   ko: r.ko,
+  pos: r.pos ?? undefined,
   exEn: r.ex_en ?? undefined,
   exKo: r.ex_ko ?? undefined,
   tip: r.tip ?? undefined,
@@ -80,6 +82,7 @@ const toRow = (w: CustomWord, userId: string) => ({
   user_id: userId,
   en: w.en,
   ko: w.ko,
+  pos: w.pos ?? null,
   ex_en: w.exEn ?? null,
   ex_ko: w.exKo ?? null,
   tip: w.tip ?? null,

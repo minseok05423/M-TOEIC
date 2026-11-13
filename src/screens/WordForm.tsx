@@ -4,15 +4,16 @@ import { deleteWord, getState, newId, saveWord, startWords, useStore } from '../
 import { decks } from '../lib/words.ts'
 import { go, href } from '../lib/router.ts'
 import { TopBar } from '../components/TopBar.tsx'
+import { POS_LIST } from '../components/Pos.tsx'
 
 export function WordForm({ id }: { id?: string }) {
   const words = useStore((s) => s.words)
   const existing = id ? words[id] : undefined
   const deckList = useMemo(() => decks(words), [words])
-  const blank = () => ({ en: '', ko: '', exEn: '', exKo: '', tip: '', deck: getState().settings.lastDeck, important: false })
+  const blank = () => ({ en: '', ko: '', exEn: '', exKo: '', tip: '', deck: getState().settings.lastDeck, important: false, pos: [] as string[] })
   const [f, setF] = useState(() =>
     existing
-      ? { en: existing.en, ko: existing.ko, exEn: existing.exEn ?? '', exKo: existing.exKo ?? '', tip: existing.tip ?? '', deck: existing.deck, important: !!existing.important }
+      ? { en: existing.en, ko: existing.ko, exEn: existing.exEn ?? '', exKo: existing.exKo ?? '', tip: existing.tip ?? '', deck: existing.deck, important: !!existing.important, pos: existing.pos ? existing.pos.split(/\s*[/·]\s*/).filter(Boolean) : [] }
       : blank(),
   )
   const [saved, setSaved] = useState(0)
@@ -45,6 +46,7 @@ export function WordForm({ id }: { id?: string }) {
       tip: f.tip.trim() || undefined,
       deck: f.deck.trim() || '내 단어',
       important: f.important || undefined,
+      pos: f.pos.length ? f.pos.join(f.pos.length > 1 && f.ko.includes('/') ? ' / ' : '·') : undefined,
       createdAt: existing?.createdAt,
     })
     if (!existing) startWords([`c:${wid}`])
@@ -90,6 +92,26 @@ export function WordForm({ id }: { id?: string }) {
           </span>
           <input className="input" value={f.ko} onChange={set('ko')} placeholder="예: 연기하다, 미루다" />
         </label>
+        <div className="field">
+          <span className="field-label">품사</span>
+          <div className="chips">
+            {POS_LIST.map((p) => {
+              const on = f.pos.includes(p)
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  className={`chip ${on ? 'on' : ''}`}
+                  aria-pressed={on}
+                  onClick={() => setF({ ...f, pos: on ? f.pos.filter((x) => x !== p) : [...f.pos, p] })}
+                >
+                  {p}
+                </button>
+              )
+            })}
+          </div>
+          {f.pos.length > 1 && <span className="hint">뜻마다 품사가 다르면 뜻을 / 로 나눠 고른 순서대로 써요. 예: 그늘지게 하다 / 그늘</span>}
+        </div>
         <label>
           묶음
           <input className="input" value={f.deck} onChange={set('deck')} list="decks" placeholder="내 단어" />

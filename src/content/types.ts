@@ -51,6 +51,8 @@ export interface Word {
   id?: string
   en: string
   ko: string
+  /** 품사 ('동사', '동사·명사'). 뜻마다 다르면 ko 와 같은 순서로 '동사 / 명사' (components/Pos.tsx) */
+  pos?: string
   /** 묶음 이름 (예: '시간', '장소'). 단어 탭에서 그룹으로 보여줌 */
   group?: string
   ex?: Example

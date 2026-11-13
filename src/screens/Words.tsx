@@ -28,7 +28,10 @@ export function Words({ view }: { view: 'mine' | 'lesson' }) {
     const n = norm(q)
     return n ? list.filter((w) => norm(w.en).includes(n) || w.ko.includes(q.trim())) : list
   }, [list, q])
-  const groups = groupBy(filtered, (w) => (view === 'mine' ? w.group : (w.lessonTitle ?? '')))
+  // 내 단어: 묶음은 최근 것부터, 묶음 안에서는 넣은 순서대로
+  const groups = groupBy(filtered, (w) => (view === 'mine' ? w.group : (w.lessonTitle ?? ''))).map(
+    ([g, ws]): [string, StudyWord[]] => [g, view === 'mine' ? [...ws].reverse() : ws],
+  )
 
   return (
     <div className="page">
@@ -105,6 +108,7 @@ export function Words({ view }: { view: 'mine' | 'lesson' }) {
                 key={w.key}
                 en={w.en}
                 ko={w.ko}
+                pos={w.pos}
                 tip={w.tip}
                 ex={w.ex}
                 box={srs[w.key]?.box}

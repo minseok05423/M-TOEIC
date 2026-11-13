@@ -18,6 +18,7 @@ The teacher sends a rough lesson topic almost every day and asks for progress an
 
 - **A topic** ("오늘은 분사구문"): write a new chapter in `src/content/chapters/YYYY-MM-DD/` following CONTENT_GUIDE.md. Fill in the explanation, words, sentences and quiz yourself from the topic. Run `npm run build`, then commit and push (Vercel redeploys from `main`). If the topic answers a student note, a personal chapter (above) may fit better.
 - **A progress check**: `npm run teacher -- progress`. Report in Korean: days studied, lessons and stages done, quiz scores, words added per day.
+- **A word list** ("N일차 단어"): write `english | 품사 | 뜻` lines to a file in the scratchpad, fixing obvious typos and adding 품사 yourself. Run `npm run teacher -- words add <file> --deck N일차 --date <that day>`, then `npm run teacher -- words` to confirm. Day 1 is 2026-11-12, Day 2 is 2026-11-13, and the next lesson is Day 3.
 - **A word-test check**: `npm run teacher -- tests`. Report the scores, the words missed, and words missed twice or more. If a word keeps being missed, suggest `npm run teacher -- star <word>` or a lesson on it.
 
 The student adds about 20 words a day themselves. The daily test is 20 newest + 10 review (see README "Daily word test"); the rules are in `src/lib/wordtest.ts`.

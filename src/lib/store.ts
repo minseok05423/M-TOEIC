@@ -30,6 +30,8 @@ export interface CustomWord {
   id: string
   en: string
   ko: string
+  /** 품사 (components/Pos.tsx) */
+  pos?: string
   exEn?: string
   exKo?: string
   tip?: string
@@ -80,6 +82,7 @@ export interface WordTestItem {
   key: string
   en: string
   ko: string
+  pos?: string
   /** new = 가장 최근에 넣은 단어, review = 이전 단어 */
   part: 'new' | 'review'
   /** 복습 단어가 뽑힌 이유 */

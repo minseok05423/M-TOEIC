@@ -8,6 +8,7 @@ export interface StudyWord {
   key: string
   en: string
   ko: string
+  pos?: string
   ex?: Example
   tip?: string
   /** ★ 중요 (내 단어만) */
@@ -27,6 +28,7 @@ function fromLesson(w: Word, chapterId: string, lessonId: string, lessonTitle: s
     key: wordKey(w),
     en: w.en,
     ko: w.ko,
+    pos: w.pos,
     ex: w.ex,
     tip: w.tip,
     group: w.group ?? '단어',
@@ -70,6 +72,7 @@ export function fromCustom(w: CustomWord): StudyWord {
     key: `c:${w.id}`,
     en: w.en,
     ko: w.ko,
+    pos: w.pos,
     ex: w.exEn ? { en: w.exEn, ko: w.exKo ?? '' } : undefined,
     tip: w.tip,
     important: w.important || undefined,

@@ -41,6 +41,7 @@ function shapeErrors(ch: unknown): string[] {
     if (isArr(l.words))
       (l.words as Record<string, unknown>[]).forEach((w, j) => {
         if (!isStr(w?.en) || !isStr(w?.ko)) out.push(`${lw} 단어 #${j + 1}: en·ko 필요`)
+        if (w?.pos !== undefined && !isStr(w.pos)) out.push(`${lw} 단어 #${j + 1}: pos 는 글자여야 해요`)
       })
     if (isArr(l.sentences))
       (l.sentences as Record<string, unknown>[]).forEach((s, j) => {

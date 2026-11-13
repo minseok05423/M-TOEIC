@@ -430,7 +430,7 @@ function WordList({ chapterId, lesson, home }: StageP) {
           <h3 className="group-title">{g}</h3>
           <ul className="word-list">
             {ws.map((w) => (
-              <WordRow key={w.key} en={w.en} ko={w.ko} tip={w.tip} ex={w.ex} level={boxLabel(srs[w.key])} box={srs[w.key]?.box} hideKo={hideKo} />
+              <WordRow key={w.key} en={w.en} ko={w.ko} pos={w.pos} tip={w.tip} ex={w.ex} level={boxLabel(srs[w.key])} box={srs[w.key]?.box} hideKo={hideKo} />
             ))}
           </ul>
         </section>
