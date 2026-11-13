@@ -1,55 +1,73 @@
-import { useState } from 'react'
-import { findLesson } from '../lib/content.ts'
-import { customWords, lessonWords, type StudyWord } from '../lib/words.ts'
-import { getState, markLesson } from '../lib/store.ts'
+import { useMemo, useState } from 'react'
+import { customWords, allWords, type StudyWord } from '../lib/words.ts'
+import { getState } from '../lib/store.ts'
 import { href } from '../lib/router.ts'
+import { shuffle, stars } from '../lib/game.ts'
 import { TopBar } from '../components/TopBar.tsx'
-import { CardsDone, Flashcards } from '../components/Flashcards.tsx'
+import { WordGame, type GameResult } from '../components/WordGame.tsx'
+import { GameDone } from '../components/GameDone.tsx'
 
-function shuffle<T>(a: T[]): T[] {
-  const b = [...a]
-  for (let i = b.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[b[i], b[j]] = [b[j], b[i]]
-  }
-  return b
-}
+const PER_ROUND = 15
 
-/** 레슨 단어 또는 내 단어 묶음을 카드로 외우기 */
-export function Cards({ chapterId, lessonId, deck }: { chapterId?: string; lessonId?: string; deck?: string }) {
-  const lesson = chapterId && lessonId ? findLesson(chapterId, lessonId) : null
-  const back = lesson ? href('l', chapterId!, lessonId!, 'words') : href('words')
-  const title = lesson ? `🃏 ${lesson.lesson.title}` : `🃏 ${deck}`
-  const [words] = useState<StudyWord[]>(() =>
-    shuffle(lesson ? lessonWords(chapterId!, lessonId!) : customWords(getState().words).filter((w) => w.group === deck)),
-  )
-  const [done, setDone] = useState<{ known: number; again: number } | null>(null)
+/** 내 단어 묶음을 게임으로 외우기 */
+export function Cards({ deck }: { deck: string }) {
+  const back = href('words')
   const [round, setRound] = useState(0)
+  const [result, setResult] = useState<GameResult | null>(null)
+  const all = useMemo(() => customWords(getState().words).filter((w) => w.group === deck), [deck])
+  const pool = useMemo(() => [...allWords(getState().words).values()], [])
+  const snap = useMemo(() => getState().progress.srs, [round])
+  const session = useMemo<StudyWord[]>(() => {
+    const srs = getState().progress.srs
+    // 아직 한 번도 안 푼 단어 → 약한 단어 순
+    return [...all].sort((a, b) => (srs[a.key]?.reps ?? 0) - (srs[b.key]?.reps ?? 0) || (srs[a.key]?.box ?? 0) - (srs[b.key]?.box ?? 0) || Math.random() - 0.5).slice(0, PER_ROUND)
+  }, [all, round])
+
+  if (!all.length)
+    return (
+      <div className="page">
+        <TopBar back={back} title={deck} />
+        <p className="empty">단어가 없어요.</p>
+      </div>
+    )
+
+  if (result)
+    return (
+      <div className="page">
+        <GameDone
+          stars={stars(result.right, result.right + result.wrong)}
+          title={`${deck} · 한 판 끝`}
+          line="틀린 단어는 내일 복습에 다시 나와요."
+          stats={[
+            { label: '한 번에 맞힘', value: `${result.right}/${result.total}` },
+            { label: '최고 연속', value: result.bestCombo },
+          ]}
+        >
+          <button
+            type="button"
+            className="btn primary block big"
+            onClick={() => {
+              setResult(null)
+              setRound(round + 1)
+            }}
+          >
+            한 판 더
+          </button>
+          <a className="btn block big" href={back}>
+            단어장으로
+          </a>
+        </GameDone>
+      </div>
+    )
 
   return (
-    <div className="page">
-      <TopBar back={back} title={title} />
-      {words.length === 0 ? (
-        <p className="empty">단어가 없어요.</p>
-      ) : done ? (
-        <CardsDone {...done}>
-          <button type="button" className="btn block" onClick={() => (setDone(null), setRound(round + 1))}>
-            한 번 더
-          </button>
-          <a className="btn primary block" href={back}>
-            돌아가기
-          </a>
-        </CardsDone>
-      ) : (
-        <Flashcards
-          key={round}
-          words={words}
-          onDone={(known, again) => {
-            if (lesson) markLesson(chapterId!, lessonId!, { cards: true })
-            setDone({ known, again })
-          }}
-        />
-      )}
-    </div>
+    <WordGame
+      key={round}
+      words={shuffle(session)}
+      pool={pool}
+      isNew={(w) => !snap[w.key] || snap[w.key].reps === 0}
+      exitHref={back}
+      onDone={setResult}
+    />
   )
 }

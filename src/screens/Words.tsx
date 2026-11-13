@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
+import { BookPlus, ClipboardPaste, Layers, Plus, Search } from 'lucide-react'
 import { useStore } from '../lib/store.ts'
-import { customWords, LESSON_WORDS, type StudyWord } from '../lib/words.ts'
+import { customWords, lessonWordList, type StudyWord } from '../lib/words.ts'
 import { boxLabel } from '../lib/srs.ts'
 import { go, href, replace } from '../lib/router.ts'
 import { TopBar } from '../components/TopBar.tsx'
-import { WordRow } from './Lesson.tsx'
+import { HideKoSwitch, WordRow } from '../components/WordRow.tsx'
 
 function groupBy(ws: StudyWord[], key: (w: StudyWord) => string): [string, StudyWord[]][] {
   const m = new Map<string, StudyWord[]>()
@@ -19,8 +20,10 @@ export function Words({ view }: { view: 'mine' | 'lesson' }) {
   const srs = useStore((s) => s.progress.srs)
   const [q, setQ] = useState('')
   const [hideKo, setHideKo] = useState(false)
+  const userChapters = useStore((s) => s.userChapters)
   const mine = useMemo(() => customWords(custom), [custom])
-  const list = view === 'mine' ? mine : LESSON_WORDS
+  const lessonList = useMemo(() => lessonWordList(), [userChapters])
+  const list = view === 'mine' ? mine : lessonList
   const filtered = useMemo(() => {
     const n = norm(q)
     return n ? list.filter((w) => norm(w.en).includes(n) || w.ko.includes(q.trim())) : list
@@ -29,45 +32,45 @@ export function Words({ view }: { view: 'mine' | 'lesson' }) {
 
   return (
     <div className="page">
-      <TopBar title="📒 단어장" />
+      <TopBar title="단어장" />
       <div className="seg">
         <button type="button" className={view === 'mine' ? 'on' : ''} onClick={() => replace('words')}>
           내 단어 {mine.length}
         </button>
         <button type="button" className={view === 'lesson' ? 'on' : ''} onClick={() => replace('words', 'lesson')}>
-          수업 단어 {LESSON_WORDS.length}
+          수업 단어 {lessonList.length}
         </button>
       </div>
 
       {view === 'mine' && (
         <div className="row-gap">
           <a className="btn primary grow" href={href('words', 'new')}>
-            ＋ 단어 추가
+            <Plus size={19} strokeWidth={2.4} /> 단어 추가
           </a>
-          <a className="btn grow" href={href('words', 'bulk')}>
-            📋 붙여넣기
+          <a className="btn tonal grow" href={href('words', 'bulk')}>
+            <ClipboardPaste size={18} /> 여러 개 붙여넣기
           </a>
         </div>
       )}
 
       {list.length > 0 && (
-        <div className="row-gap">
-          <input
-            className="input grow"
-            type="search"
-            placeholder="🔍 영어나 뜻으로 찾기"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-          <label className="toggle small">
-            <input type="checkbox" checked={hideKo} onChange={(e) => setHideKo(e.target.checked)} /> 뜻 가리기
-          </label>
-        </div>
+        <>
+          <div className="search">
+            <Search size={18} />
+            <input className="input" type="search" placeholder="영어나 뜻으로 찾기" value={q} onChange={(e) => setQ(e.target.value)} />
+          </div>
+          <div className="row-between" style={{ padding: '0 4px', marginTop: -4 }}>
+            <span className="small muted">{filtered.length}개</span>
+            <HideKoSwitch value={hideKo} onChange={setHideKo} />
+          </div>
+        </>
       )}
 
       {view === 'mine' && mine.length === 0 && (
         <div className="card empty-card">
-          <p className="done-emoji">📚</p>
+          <div className="badge-ico">
+            <BookPlus size={30} strokeWidth={2} />
+          </div>
           <p>
             <b>책이나 수업에서 모르는 단어</b>를 여기에 추가하세요.
           </p>
@@ -80,19 +83,19 @@ export function Words({ view }: { view: 'mine' | 'lesson' }) {
       {q && filtered.length === 0 && <p className="empty">"{q}" 검색 결과가 없어요.</p>}
 
       {groups.map(([g, ws]) => (
-        <section key={g} className="card">
+        <section key={g} className="card word-card">
           <div className="row-between">
             <h3 className="group-title">
-              {g} <span className="muted small">{ws.length}</span>
+              {g} · {ws.length}
             </h3>
             {view === 'mine' && !q && (
-              <a className="btn small" href={href('words', 'cards', g)}>
-                🃏 외우기
+              <a className="btn small tonal" href={href('words', 'cards', g)}>
+                <Layers size={14} /> 외우기
               </a>
             )}
             {view === 'lesson' && ws[0]?.chapterId && (
-              <a className="btn small" href={href('l', ws[0].chapterId, ws[0].lessonId!, 'cards')}>
-                🃏 외우기
+              <a className="btn small tonal" href={href('l', ws[0].chapterId, ws[0].lessonId!, 'words')}>
+                <Layers size={14} /> 외우기
               </a>
             )}
           </div>

@@ -1,5 +1,5 @@
 import type { Example, Word } from '../content/types.ts'
-import { CHAPTERS } from './content.ts'
+import { getChapters, type ShownChapter } from './content.ts'
 import type { CustomWord } from './store.ts'
 
 /** 레슨 단어와 내 단어를 같은 모양으로 다루기 위한 형태 */
@@ -36,16 +36,20 @@ function fromLesson(w: Word, chapterId: string, lessonId: string, lessonTitle: s
 }
 
 export function lessonWords(chapterId: string, lessonId: string): StudyWord[] {
-  const ch = CHAPTERS.find((c) => c.id === chapterId)
+  const ch = getChapters().find((c) => c.id === chapterId)
   const l = ch?.lessons.find((x) => x.id === lessonId)
   return l ? l.words.map((w) => fromLesson(w, chapterId, l.id, l.title)) : []
 }
 
-/** 모든 레슨 단어 (같은 key 는 처음 것만) */
-export const LESSON_WORDS: StudyWord[] = (() => {
+/** 모든 레슨 단어 (같은 key 는 처음 것만). 맞춤 챕터가 바뀔 때만 다시 계산 */
+let lwFor: ShownChapter[] | null = null
+let lw: StudyWord[] = []
+export function lessonWordList(): StudyWord[] {
+  const chapters = getChapters()
+  if (chapters === lwFor) return lw
   const seen = new Set<string>()
   const out: StudyWord[] = []
-  for (const ch of CHAPTERS)
+  for (const ch of chapters)
     for (const l of ch.lessons)
       for (const w of l.words) {
         const sw = fromLesson(w, ch.id, l.id, l.title)
@@ -54,8 +58,10 @@ export const LESSON_WORDS: StudyWord[] = (() => {
           out.push(sw)
         }
       }
+  lwFor = chapters
+  lw = out
   return out
-})()
+}
 
 export function fromCustom(w: CustomWord): StudyWord {
   return {
@@ -79,7 +85,7 @@ export function customWords(words: Record<string, CustomWord>): StudyWord[] {
 
 export function allWords(words: Record<string, CustomWord>): Map<string, StudyWord> {
   const m = new Map<string, StudyWord>()
-  for (const w of LESSON_WORDS) m.set(w.key, w)
+  for (const w of lessonWordList()) m.set(w.key, w)
   for (const w of customWords(words)) m.set(w.key, w)
   return m
 }

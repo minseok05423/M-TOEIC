@@ -1,10 +1,11 @@
 import { useRef, useState } from 'react'
+import { Cloud, Download, HardDrive, Info, LogIn, LogOut, Music, RefreshCw, RotateCcw, Smartphone, TriangleAlert, Upload, Volume2 } from 'lucide-react'
 import { getState, resetProgress, setSettings, setState, useStore, type State } from '../lib/store.ts'
 import { mergeProgress, mergeWords } from '../lib/merge.ts'
 import { supabase } from '../lib/supabase.ts'
 import { syncNow, useSyncStatus } from '../lib/sync.ts'
 import { speak, ttsSupported } from '../lib/tts.ts'
-import { CHAPTERS } from '../lib/content.ts'
+import { useChapters } from '../lib/content.ts'
 import { today } from '../lib/date.ts'
 import { TopBar } from '../components/TopBar.tsx'
 import type { Session } from '@supabase/supabase-js'
@@ -36,95 +37,182 @@ export function Settings({ session }: { session: Session | null }) {
         progress: mergeProgress(s.progress, data.progress),
         words: mergeWords(s.words, data.words ?? {}),
       }))
-      setMsg('✅ 백업을 합쳤어요')
+      setMsg('백업을 합쳤어요')
     } catch (e) {
-      setMsg('⚠️ ' + (e instanceof Error ? e.message : '불러오기 실패'))
+      setMsg(e instanceof Error ? e.message : '불러오기 실패')
     }
   }
 
-  const lessons = CHAPTERS.reduce((n, c) => n + c.lessons.length, 0)
+  const chapters = useChapters()
+  const lessons = chapters.reduce((n, c) => n + c.lessons.length, 0)
+  const syncText =
+    sync.state === 'syncing'
+      ? '저장 중…'
+      : sync.state === 'error'
+        ? sync.error
+        : sync.lastSync
+          ? `마지막 저장 ${new Date(sync.lastSync).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`
+          : '자동 저장 켜짐'
 
   return (
     <div className="page">
-      <TopBar title="⚙️ 설정" />
+      <TopBar title="설정" />
 
-      <section className="card">
-        <h3>☁️ 저장</h3>
-        {!supabase ? (
-          <p className="muted small">이 기기(브라우저)에만 저장하고 있어요. 앱을 지우거나 브라우저 데이터를 지우면 사라지니 가끔 백업하세요.</p>
-        ) : (
-          <>
-            <p className="small">
-              {session?.user.email} 계정에 자동 저장 중
-              <br />
-              <span className="muted">
-                {sync.state === 'syncing'
-                  ? '저장 중…'
-                  : sync.state === 'error'
-                    ? `⚠️ ${sync.error}`
-                    : sync.lastSync
-                      ? `마지막 저장 ${new Date(sync.lastSync).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`
-                      : ''}
-              </span>
-            </p>
-            <div className="row-gap">
-              <button type="button" className="btn grow" onClick={() => void syncNow()} disabled={sync.state === 'syncing'}>
-                지금 저장
+      <section className="group">
+        <p className="section-label">저장</p>
+        <div className="group-card">
+          {!supabase || !session ? (
+            <>
+              <div className="row">
+                <span className="row-ico gray">
+                  <HardDrive size={18} />
+                </span>
+                <span className="row-text">
+                  이 기기에만 저장 중
+                  <span className="sub">브라우저 데이터를 지우면 사라지니 가끔 백업하세요</span>
+                </span>
+              </div>
+              {supabase && (
+                <button type="button" className="row" onClick={() => setSettings({ skipLogin: false })}>
+                  <span className="row-ico">
+                    <LogIn size={18} />
+                  </span>
+                  <span className="row-text">
+                    로그인하고 서버에 저장
+                    <span className="sub">지금까지 기록은 그대로 합쳐져요</span>
+                  </span>
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="row">
+                <span className="row-ico">
+                  <Cloud size={18} />
+                </span>
+                <span className="row-text">
+                  {session.user.email}
+                  <span className="sub">
+                    <span className={`status-dot ${sync.state}`} />
+                    {syncText}
+                  </span>
+                </span>
+              </div>
+              {sync.kind === 'setup' && (
+                <div className="row setup-warn">
+                  <span className="row-ico red">
+                    <TriangleAlert size={18} />
+                  </span>
+                  <span className="row-text small">
+                    지금은 이 휴대폰에만 저장되고 있어요. 공부 기록은 안전해요 — 서버 준비가 끝나면 자동으로 올라가요.
+                  </span>
+                </div>
+              )}
+              <button type="button" className="row" onClick={() => void syncNow()} disabled={sync.state === 'syncing'}>
+                <span className="row-ico green">
+                  <RefreshCw size={18} />
+                </span>
+                <span className="row-text">지금 저장</span>
               </button>
               <button
                 type="button"
-                className="btn grow"
+                className="row"
                 onClick={async () => {
                   await syncNow()
-                  if (confirm('로그아웃할까요?')) await supabase!.auth.signOut()
+                  if (confirm('로그아웃할까요?')) {
+                    await supabase!.auth.signOut()
+                    setSettings({ skipLogin: false })
+                  }
                 }}
               >
-                로그아웃
+                <span className="row-ico gray">
+                  <LogOut size={18} />
+                </span>
+                <span className="row-text">로그아웃</span>
               </button>
-            </div>
-          </>
-        )}
+            </>
+          )}
+        </div>
       </section>
 
       {ttsSupported && (
-        <section className="card">
-          <h3>🔊 발음</h3>
-          <div className="seg">
-            {[
-              { r: 0.7, l: '느리게' },
-              { r: 0.9, l: '보통' },
-              { r: 1.05, l: '빠르게' },
-            ].map((o) => (
-              <button
-                key={o.r}
-                type="button"
-                className={settings.rate === o.r ? 'on' : ''}
-                onClick={() => {
-                  setSettings({ rate: o.r })
-                  speak('The meeting has been postponed until Friday.', o.r)
-                }}
-              >
-                {o.l}
-              </button>
-            ))}
+        <section className="group">
+          <p className="section-label">발음</p>
+          <div className="group-card">
+            <div className="row-block">
+              <span className="row-text">
+                <span className="row-value">말하기 속도</span>
+              </span>
+              <div className="seg">
+                {[
+                  { r: 0.7, l: '느리게' },
+                  { r: 0.9, l: '보통' },
+                  { r: 1.05, l: '빠르게' },
+                ].map((o) => (
+                  <button
+                    key={o.r}
+                    type="button"
+                    className={settings.rate === o.r ? 'on' : ''}
+                    onClick={() => {
+                      setSettings({ rate: o.r })
+                      speak('The meeting has been postponed until Friday.', o.r)
+                    }}
+                  >
+                    {o.l}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <label className="row">
+              <span className="row-ico orange">
+                <Volume2 size={18} />
+              </span>
+              <span className="row-text">새 단어 나오면 자동 발음</span>
+              <input
+                type="checkbox"
+                className="switch"
+                checked={settings.autoSpeak}
+                onChange={(e) => setSettings({ autoSpeak: e.target.checked })}
+              />
+            </label>
           </div>
-          <label className="toggle">
-            <input type="checkbox" checked={settings.autoSpeak} onChange={(e) => setSettings({ autoSpeak: e.target.checked })} />{' '}
-            단어 카드 넘기면 자동으로 발음
-          </label>
-          <p className="hint">소리가 안 나면 휴대폰 무음 모드를 꺼 보세요.</p>
+          <p className="group-foot">소리가 안 나면 휴대폰 무음 모드를 꺼 보세요.</p>
         </section>
       )}
 
-      <section className="card">
-        <h3>💾 백업</h3>
-        <p className="muted small">학습 기록과 내 단어를 파일로 저장하거나 불러와요. 불러오면 지금 기록과 합쳐져요.</p>
-        <div className="row-gap">
-          <button type="button" className="btn grow" onClick={exportData}>
-            내보내기
+      <section className="group">
+        <p className="section-label">게임</p>
+        <div className="group-card">
+          <label className="row">
+            <span className="row-ico orange">
+              <Music size={18} />
+            </span>
+            <span className="row-text">
+              정답 · 오답 효과음
+              <span className="sub">짧은 "띵" 소리와 진동</span>
+            </span>
+            <input type="checkbox" className="switch" checked={settings.sfx} onChange={(e) => setSettings({ sfx: e.target.checked })} />
+          </label>
+        </div>
+      </section>
+
+      <section className="group">
+        <p className="section-label">백업</p>
+        <div className="group-card">
+          <button type="button" className="row" onClick={exportData}>
+            <span className="row-ico purple">
+              <Download size={18} />
+            </span>
+            <span className="row-text">파일로 내보내기</span>
           </button>
-          <button type="button" className="btn grow" onClick={() => fileRef.current?.click()}>
-            불러오기
+          <button type="button" className="row" onClick={() => fileRef.current?.click()}>
+            <span className="row-ico purple">
+              <Upload size={18} />
+            </span>
+            <span className="row-text">
+              파일에서 불러오기
+              {msg && <span className="sub">{msg}</span>}
+            </span>
           </button>
         </div>
         <input
@@ -138,32 +226,55 @@ export function Settings({ session }: { session: Session | null }) {
             e.target.value = ''
           }}
         />
-        {msg && <p className="small">{msg}</p>}
+        <p className="group-foot">학습 기록과 내 단어를 파일로 저장하거나 불러와요. 불러오면 지금 기록과 합쳐져요.</p>
       </section>
 
-      <section className="card">
-        <h3>📱 홈 화면에 추가</h3>
-        <p className="small">
-          <b>아이폰</b>: Safari 아래 공유 버튼 → "홈 화면에 추가"
-          <br />
-          <b>안드로이드</b>: Chrome 오른쪽 위 ⋮ → "홈 화면에 추가" 또는 "앱 설치"
-        </p>
+      <section className="group">
+        <p className="section-label">홈 화면에 추가</p>
+        <div className="group-card">
+          <div className="row">
+            <span className="row-ico gray">
+              <Smartphone size={18} />
+            </span>
+            <span className="row-text small">
+              <span>
+                <b>아이폰</b> Safari 아래 공유 버튼 → 홈 화면에 추가
+              </span>
+              <span>
+                <b>안드로이드</b> Chrome ⋮ → 홈 화면에 추가 / 앱 설치
+              </span>
+            </span>
+          </div>
+        </div>
       </section>
 
-      <section className="card">
-        <h3>정보</h3>
-        <p className="small muted">
-          챕터 {CHAPTERS.length}개 · 레슨 {lessons}개 · 최근 수업 {CHAPTERS[0]?.date}
-        </p>
-        <button
-          type="button"
-          className="btn danger small"
-          onClick={() => {
-            if (confirm('퀴즈 점수와 단어 복습 기록을 모두 지울까요? (내 단어는 남아요)') && confirm('정말요? 되돌릴 수 없어요.')) resetProgress()
-          }}
-        >
-          학습 기록 초기화
-        </button>
+      <section className="group">
+        <p className="section-label">정보</p>
+        <div className="group-card">
+          <div className="row">
+            <span className="row-ico gray">
+              <Info size={18} />
+            </span>
+            <span className="row-text">
+              콘텐츠
+              <span className="sub">
+                챕터 {chapters.length}개 · 레슨 {lessons}개 · 최근 {chapters[0]?.date}
+              </span>
+            </span>
+          </div>
+          <button
+            type="button"
+            className="row danger"
+            onClick={() => {
+              if (confirm('퀴즈 점수와 단어 복습 기록을 모두 지울까요? (내 단어는 남아요)') && confirm('정말요? 되돌릴 수 없어요.')) resetProgress()
+            }}
+          >
+            <span className="row-ico red">
+              <RotateCcw size={18} />
+            </span>
+            <span className="row-text">학습 기록 초기화</span>
+          </button>
+        </div>
       </section>
     </div>
   )

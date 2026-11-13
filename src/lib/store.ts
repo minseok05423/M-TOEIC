@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react'
 import type { SrsCard } from './srs.ts'
 import { review } from './srs.ts'
 import { today } from './date.ts'
+import type { Chapter } from '../content/types.ts'
 
 export interface LessonProgress {
   read?: boolean
@@ -40,24 +41,63 @@ export interface CustomWord {
   deleted?: boolean
 }
 
+/** 학생이 레슨에서 남긴 메모. 형식은 NoteSheet 가 강제 (DB 표 lesson_notes 와 1:1) */
+export type NoteKind = 'important' | 'confusing'
+export type NoteCategory = 'meaning' | 'structure' | 'grammar' | 'answer' | 'other'
+export type NoteStage = 'lesson' | 'learn' | 'words' | 'sentences' | 'quiz'
+
+export interface LessonNote {
+  id: string
+  chapterId: string
+  lessonId: string
+  lessonTitle: string
+  stage: NoteStage
+  /** 'learn:s2' · 'words:w:agenda' · 'sentences:s1' · 'quiz:q3'. 없으면 레슨 전체 */
+  targetId?: string
+  targetLabel?: string
+  kind: NoteKind
+  /** 헷갈리는 점: 어디서 막혔는지 */
+  category?: NoteCategory
+  /** 중요한 점: 내 말로 정리 / 헷갈리는 점: 지금 내가 이해한 것 */
+  point: string
+  /** 헷갈리는 점: 무엇이 헷갈리는지 */
+  question?: string
+  example?: string
+  /** 헷갈리는 점: 1 조금 · 2 꽤 · 3 전혀 모르겠음 */
+  level?: 1 | 2 | 3
+  createdAt: number
+  /** 서버에 올라갔는지 */
+  synced?: boolean
+  /** 서버에서 받은 것: 선생님이 반영했는지 + 한마디 */
+  status?: 'new' | 'done'
+  reply?: string
+}
+
 export interface Settings {
   /** 발음 속도 */
   rate: number
   /** 카드 넘길 때 자동으로 발음 */
   autoSpeak: boolean
+  /** 정답·오답 효과음 */
+  sfx: boolean
   lastDeck: string
+  /** Supabase 가 설정돼 있어도 로그인 없이 이 기기에서만 쓰기 */
+  skipLogin?: boolean
 }
 
 export interface State {
   progress: Progress
   words: Record<string, CustomWord>
+  notes: Record<string, LessonNote>
+  /** 이 학생에게만 보이는 맞춤 챕터 (서버 user_chapters 의 사본. 오프라인에서도 보이게 저장) */
+  userChapters: Chapter[]
   settings: Settings
 }
 
 const KEY = 'mtoeic:v1'
 
 export const emptyProgress = (): Progress => ({ lessons: {}, srs: {}, days: {} })
-const defaultSettings: Settings = { rate: 0.9, autoSpeak: true, lastDeck: '내 단어' }
+const defaultSettings: Settings = { rate: 0.9, autoSpeak: true, sfx: true, lastDeck: '내 단어' }
 
 function load(): State {
   try {
@@ -67,13 +107,15 @@ function load(): State {
       return {
         progress: { ...emptyProgress(), ...s.progress },
         words: s.words ?? {},
+        notes: s.notes ?? {},
+        userChapters: s.userChapters ?? [],
         settings: { ...defaultSettings, ...s.settings },
       }
     }
   } catch {
     /* 손상된 저장 데이터는 무시 */
   }
-  return { progress: emptyProgress(), words: {}, settings: defaultSettings }
+  return { progress: emptyProgress(), words: {}, notes: {}, userChapters: [], settings: defaultSettings }
 }
 
 let state: State = load()
@@ -218,4 +260,10 @@ export function setSettings(patch: Partial<Settings>) {
 
 export function resetProgress() {
   setState((s) => ({ ...s, progress: emptyProgress() }))
+}
+
+export function addNote(n: Omit<LessonNote, 'id' | 'createdAt'>): LessonNote {
+  const note: LessonNote = { ...n, id: newId(), createdAt: Date.now() }
+  setState((s) => ({ ...s, notes: { ...s.notes, [note.id]: note } }))
+  return note
 }

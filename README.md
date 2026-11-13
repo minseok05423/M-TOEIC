@@ -1,6 +1,13 @@
 # M-TOEIC
 
-A private TOEIC study PWA for one student. Every **chapter** is built from a class where the student struggled, and each chapter holds small **lessons** with four parts: 설명 (explanation) → 단어 (word cards) → 문장 (colour-coded sentence analysis) → 퀴즈 (quiz).
+A private TOEIC study PWA for one student. Every **chapter** is built from a class where the student struggled, and each chapter holds small **lessons**. A lesson is a path of four short, active stages:
+
+1. **개념 익히기**: the explanation, one card at a time.
+2. **단어 게임**: new words get an intro card, then meaning / reverse / listening picks and a pair-matching round. The first answer to each word feeds spaced repetition; a missed word comes back in the same round.
+3. **뼈대 찾기**: the student taps the main verb, then the subject, of each sentence. A wrong tap explains why (e.g. "that verb is inside a clause"). Then the full colour-coded analysis is shown.
+4. **실전 퀴즈**: TOEIC-style questions with a streak counter, stars and per-question explanations.
+
+The word list and the colour-coded sentence notes stay available as reference pages. Daily review and deck practice use the same word game.
 The student can also add their own words, which go into spaced-repetition review alongside the lesson words.
 
 - React 19 + Vite 8 + TypeScript. Routing is by URL hash, so the phone's back button works.
@@ -30,13 +37,43 @@ With no `.env`, the app runs in **this-device-only mode**: no login, data stays 
    VITE_SUPABASE_URL=https://xxxx.supabase.co
    VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
    ```
-   (An older `anon` key in `VITE_SUPABASE_ANON_KEY` also works. Never use the secret / `service_role` key.)
+   (An older `anon` key in `VITE_SUPABASE_ANON_KEY` also works. Never put the secret / `service_role` key in a `VITE_` variable: those go into the app.)
 
 The publishable key is meant to be public. Row Level Security limits every row to its owner.
+
+Check the setup any time with:
+
+```bash
+npm run check-supabase   # reads .env.local, never prints the key
+```
+
+It reports a missing table (`PGRST205 … schema cache`) or permission problem, and whether sign-ups are still open. If the tables are missing, re-run `supabase/schema.sql`; it is safe to run more than once.
+
+If sync fails, the app keeps working: everything is saved on the phone first, and Settings shows what is wrong. The student can also choose **로그인 없이 이 휴대폰에서만 쓰기** on the login screen and log in later; the records merge.
 
 ### Adding words for the student from the dashboard
 
 In **Table Editor → custom_words → Insert row**, fill in `en`, `ko` and `deck`, and set `user_id` to the student's UUID (shown under Authentication → Users). The word appears in the student's word list and today's review the next time the app opens or comes back to the foreground.
+
+## Student notes → personal lessons
+
+The student can leave a note from any lesson: the **메모** button in every stage header (the current card, word, sentence or question is picked for them), **왜 틀렸는지 모르겠다면** after a wrong quiz answer, or **내 메모** at the bottom of the lesson page. The form is fixed, not free text:
+
+- **중요한 점**: "내 말로 정리하면" (required, 8+ characters) and an optional example sentence.
+- **헷갈리는 점**: where they got stuck (뜻 / 문장 구조 / 문법 규칙 / 왜 정답? / 기타), "지금 내가 이해한 건" and "그런데 이게 헷갈려요" (both required, 8+ characters), how confused they are (1–3) and an optional sentence.
+
+Notes are saved on the phone first, then uploaded to `lesson_notes`. Students can send and read their own notes but not change them. The lesson page shows each note's status: 보내는 중 → 선생님께 전달됨 → 레슨에 반영됨, plus your reply.
+
+You answer with a **personal chapter**, a normal `Chapter` stored in `user_chapters` that only that student sees. A personal chapter with the same id as a base chapter replaces it for that student, which is how you change an existing lesson. Personal chapters are written as `personal/<chapter-id>.ts` (start from [`personal/_template.ts`](personal/_template.ts)) and uploaded with a local script:
+
+```bash
+npm run teacher -- notes            # new notes, with the lesson content each one points at
+npm run teacher -- push personal/2026-11-14-me-ing.ts   # check, upload, mark the notes in meta.notes as done
+npm run teacher -- done <note-id> --reply "..."         # reply without a lesson
+npm run teacher -- chapters | pull <id> | rm <id> | users
+```
+
+The script needs `SUPABASE_SECRET_KEY=sb_secret_...` in `.env.local` (Project Settings → API Keys → Secret keys). The key bypasses Row Level Security, so it stays on your machine; the script never prints it. `push` runs the same checks as the build and uploads nothing if one fails. The app checks each personal chapter again and skips any broken one. No redeploy is needed: the student gets new chapters on the next sync.
 
 ## Deploying to Vercel
 

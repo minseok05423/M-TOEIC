@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Lightbulb } from 'lucide-react'
 import type { AnalyzedSentence } from '../content/types.ts'
 import { parseMarkup, plainText, tagInfo, TAG_KEYS } from '../content/markup.ts'
 import { Speak } from './Speak.tsx'
@@ -20,11 +21,11 @@ export function SentenceView({ s, opts, index }: { s: AnalyzedSentence; opts: Vi
   return (
     <div className="card sentence">
       <div className="sentence-head">
-        <span className="num">{index + 1}</span>
+        {index >= 0 ? <span className="num">{String(index + 1).padStart(2, '0')}</span> : <span />}
         <Speak text={plain} />
-        <Speak text={plain} slow label="천천히 듣기" />
+        <Speak text={plain} slow />
       </div>
-      <p className={`sent ${opts.skeleton ? 'skeleton' : ''}`}>
+      <p className={`sent en-serif ${opts.skeleton ? 'skeleton' : ''}`}>
         {tokens.map((t, i) => {
           if (!t.tag)
             return (
@@ -55,7 +56,7 @@ export function SentenceView({ s, opts, index }: { s: AnalyzedSentence; opts: Vi
         </div>
       )}
       {opts.slash && s.slash && (
-        <p className="slash">
+        <p className="slash en-serif">
           {s.slash.split('/').map((part, i, arr) => (
             <span key={i}>
               {part.trim()}
@@ -67,7 +68,10 @@ export function SentenceView({ s, opts, index }: { s: AnalyzedSentence; opts: Vi
       {opts.ko && <p className="ko">{s.ko}</p>}
       {opts.ko && s.note && (
         <p className="note">
-          💡 <Inline text={s.note} />
+          <Lightbulb size={16} />
+          <span>
+            <Inline text={s.note} />
+          </span>
         </p>
       )}
     </div>

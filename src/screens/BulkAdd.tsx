@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { TriangleAlert } from 'lucide-react'
 import { getState, newId, saveWords, startWords, useStore } from '../lib/store.ts'
 import { decks } from '../lib/words.ts'
 import { go, href } from '../lib/router.ts'
@@ -36,7 +37,7 @@ export function BulkAdd() {
 
   return (
     <div className="page">
-      <TopBar back={href('words')} title="📋 여러 개 붙여넣기" />
+      <TopBar back={href('words')} title="여러 개 붙여넣기" />
       <div className="card form">
         <p className="small muted">
           한 줄에 단어 하나씩. 이렇게 쓰면 돼요:
@@ -79,15 +80,18 @@ export function BulkAdd() {
         )}
         {bad.length > 0 && (
           <div className="warn small">
-            ⚠️ 인식 못 한 줄 {bad.length}개 (영어와 뜻 사이에 = 를 넣어 보세요):
-            <ul>
-              {bad.slice(0, 5).map((p, i) => (
-                <li key={i}>{p.line}</li>
-              ))}
-            </ul>
+            <TriangleAlert size={16} />
+            <div>
+              인식 못 한 줄 {bad.length}개 (영어와 뜻 사이에 = 를 넣어 보세요)
+              <ul>
+                {bad.slice(0, 5).map((p, i) => (
+                  <li key={i}>{p.line}</li>
+                ))}
+              </ul>
+            </div>
           </div>
         )}
-        <button type="button" className="btn primary block" disabled={!ok.length} onClick={save}>
+        <button type="button" className="btn primary block big" disabled={!ok.length} onClick={save}>
           {ok.length ? `${ok.length}개 추가` : '추가'}
         </button>
       </div>

@@ -101,7 +101,7 @@ export const suffix: Lesson = {
     { group: '형용사 어미', id: 'ent-a', en: '-ent / -ant (형용사)', ko: '형용사 (~한)', ex: { en: 'confidence → confident, importance → important', ko: '자신감 → 자신 있는, 중요성 → 중요한' } },
 
     { group: '부사·동사 어미', id: 'ly', en: '형용사 + -ly', ko: '부사 (~하게)', ex: { en: 'quick → quickly, careful → carefully', ko: '빠른 → 빠르게, 조심스러운 → 조심스럽게' } },
-    { group: '부사·동사 어미', id: 'ly-adj', en: '명사 + -ly', ko: '⚠️ 형용사! (부사 아님)', ex: { en: 'friendly, costly, timely, lovely, likely', ko: '친절한, 비싼, 시기적절한, 사랑스러운, ~할 것 같은' } },
+    { group: '부사·동사 어미', id: 'ly-adj', en: '명사 + -ly', ko: '형용사! (부사 아님)', ex: { en: 'friendly, costly, timely, lovely, likely', ko: '친절한, 비싼, 시기적절한, 사랑스러운, ~할 것 같은' } },
     { group: '부사·동사 어미', id: 'ize', en: '-ize', ko: '동사 (~화하다)', ex: { en: 'organize, realize, apologize', ko: '조직하다, 깨닫다, 사과하다' } },
     { group: '부사·동사 어미', id: 'ify', en: '-ify', ko: '동사 (~하게 만들다)', ex: { en: 'notify, simplify, clarify', ko: '알리다, 단순화하다, 명확히 하다' } },
     { group: '부사·동사 어미', id: 'en', en: '-en', ko: '동사 (~하게 만들다)', ex: { en: 'widen, strengthen, shorten', ko: '넓히다, 강화하다, 줄이다' } },

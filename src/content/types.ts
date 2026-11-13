@@ -21,6 +21,7 @@ export interface Lesson {
   /** 챕터 안에서 유일한 짧은 id. 바꾸지 마세요 */
   id: string
   title: string
+  /** 지금은 화면에 표시하지 않음 (홈에서는 레슨 번호를 보여줌) */
   emoji: string
   /** 한 줄 요약 */
   summary: string
@@ -33,7 +34,7 @@ export interface Lesson {
 
 export interface Section {
   heading: string
-  /** 여러 줄 가능. **굵게** 지원. 줄 맨 앞 '- ' 는 글머리표 */
+  /** 여러 줄 가능. **굵게** 지원. 줄 맨 앞 '- ' 는 글머리표, '💡 ' 는 팁 박스, '⚠️ ' 는 주의 박스 */
   body: string
   examples?: Example[]
   /** 표: 첫 행이 헤더 */
@@ -101,4 +102,15 @@ export interface TapQuestion {
   text: string
   explain: string
   ko?: string
+}
+
+/**
+ * 맞춤 챕터 파일(personal/*.ts)에서 chapter 와 같이 내보내는 정보.
+ * `npm run teacher -- push personal/<파일>.ts` 가 이걸 보고 누구에게 올릴지, 어떤 메모를 반영 표시할지 정함.
+ */
+export interface PersonalMeta {
+  /** 학생 로그인 이메일 */
+  user: string
+  /** 이 챕터로 반영한 메모 id → 학생에게 보여 줄 선생님 한마디 (빈 문자열이면 한마디 없이 '반영됨'만) */
+  notes?: Record<string, string>
 }

@@ -39,5 +39,5 @@ export function boxLabel(card: SrsCard | undefined): string {
   if (card.box === 0) return '다시 보기'
   if (card.box <= 2) return '익히는 중'
   if (card.box < MAX_BOX) return '거의 외움'
-  return '완벽 ⭐'
+  return '완벽'
 }
