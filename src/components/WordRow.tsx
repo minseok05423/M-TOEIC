@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Lightbulb, Pencil } from 'lucide-react'
+import { Lightbulb, Pencil, Star } from 'lucide-react'
 import { MAX_BOX } from '../lib/srs.ts'
 import { Speak } from './Speak.tsx'
 
@@ -32,6 +32,8 @@ export function WordRow({
   box,
   hideKo,
   onEdit,
+  important,
+  onStar,
 }: {
   en: string
   ko: string
@@ -41,6 +43,9 @@ export function WordRow({
   box?: number
   hideKo?: boolean
   onEdit?: () => void
+  important?: boolean
+  /** 있으면 ★ 버튼 (중요 표시 켜고 끄기) */
+  onStar?: () => void
 }) {
   const [open, setOpen] = useState(false)
   const shown = !hideKo || open
@@ -53,6 +58,20 @@ export function WordRow({
           <span className={`word-ko ${shown ? '' : 'hidden'}`}>{shown ? ko : '탭해서 보기'}</span>
         </div>
         {box !== undefined && <Meter box={box} title={level} />}
+        {onStar && (
+          <button
+            type="button"
+            className={`star-btn ${important ? 'on' : ''}`}
+            aria-label={important ? '중요 표시 끄기' : '중요 표시'}
+            aria-pressed={!!important}
+            onClick={(e) => {
+              e.stopPropagation()
+              onStar()
+            }}
+          >
+            <Star size={19} strokeWidth={2.2} />
+          </button>
+        )}
       </div>
       {open && (ex || tip || onEdit || level) && (
         <div className="word-more">

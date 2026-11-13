@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import { supabase } from './supabase.ts'
-import { getState, setLocalChangeHook, setState, startWords, type CustomWord, type LessonNote, type Progress } from './store.ts'
+import { getState, setLocalChangeHook, setState, startWords, type CustomWord, type LessonNote, type Progress, type WordTest } from './store.ts'
 import { mergeProgress, mergeWords } from './merge.ts'
 import { validateChapters } from '../content/validate.ts'
 import type { Chapter } from '../content/types.ts'
@@ -55,6 +55,7 @@ interface WordRow {
   ex_ko: string | null
   tip: string | null
   deck: string
+  important: boolean | null
   created_at: string
   updated_at: string
   deleted: boolean
@@ -68,6 +69,7 @@ const toWord = (r: WordRow): CustomWord => ({
   exKo: r.ex_ko ?? undefined,
   tip: r.tip ?? undefined,
   deck: r.deck,
+  important: r.important || undefined,
   createdAt: Date.parse(r.created_at),
   updatedAt: Date.parse(r.updated_at),
   deleted: r.deleted || undefined,
@@ -82,6 +84,7 @@ const toRow = (w: CustomWord, userId: string) => ({
   ex_ko: w.exKo ?? null,
   tip: w.tip ?? null,
   deck: w.deck,
+  important: !!w.important,
   created_at: new Date(w.createdAt).toISOString(),
   updated_at: new Date(w.updatedAt).toISOString(),
   deleted: !!w.deleted,
@@ -155,6 +158,46 @@ function mergeNotes(local: Record<string, LessonNote>, remote: NoteRow[]): Recor
   return out
 }
 
+interface TestRow {
+  id: string
+  day: string
+  items: WordTest['items']
+  score: number
+  total: number
+  started_at: string
+  finished_at: string
+}
+
+const testToRow = (t: WordTest, userId: string) => ({
+  id: t.id,
+  user_id: userId,
+  day: t.day,
+  items: t.items,
+  score: t.score,
+  total: t.total,
+  started_at: new Date(t.startedAt).toISOString(),
+  finished_at: new Date(t.finishedAt).toISOString(),
+})
+
+/** 서버에만 있는 테스트(다른 기기에서 본 것)를 가져오고, 서버에 있는 건 올라간 것으로 표시 */
+function mergeTests(local: Record<string, WordTest>, remote: TestRow[]): Record<string, WordTest> {
+  const out = { ...local }
+  for (const r of remote)
+    out[r.id] = out[r.id]
+      ? { ...out[r.id], synced: true }
+      : {
+          id: r.id,
+          day: r.day,
+          items: r.items,
+          score: r.score,
+          total: r.total,
+          startedAt: Date.parse(r.started_at),
+          finishedAt: Date.parse(r.finished_at),
+          synced: true,
+        }
+  return out
+}
+
 /** 맞춤 챕터는 검사를 통과한 것만 보여 줌 (깨진 챕터 하나 때문에 앱이 멈추지 않게) */
 function usableChapters(rows: { chapter: unknown }[]): Chapter[] {
   return rows
@@ -182,16 +225,18 @@ export async function syncNow(): Promise<void> {
   setStatus({ state: 'syncing' })
   try {
     // 1) 가져오기
-    const [p, w, n, c] = await Promise.all([
+    const [p, w, n, c, t] = await Promise.all([
       supabase.from('progress').select('data').eq('user_id', userId).maybeSingle(),
       supabase.from('custom_words').select('*').eq('user_id', userId),
       supabase.from('lesson_notes').select('*').eq('user_id', userId),
       supabase.from('user_chapters').select('chapter').eq('user_id', userId),
+      supabase.from('word_tests').select('id, day, items, score, total, started_at, finished_at').eq('user_id', userId),
     ])
     if (p.error) throw p.error
     if (w.error) throw w.error
     if (n.error) throw n.error
     if (c.error) throw c.error
+    if (t.error) throw t.error
     const remoteProgress = (p.data?.data ?? null) as Partial<Progress> | null
     const remoteWords: Record<string, CustomWord> = {}
     for (const r of w.data as WordRow[]) remoteWords[r.id] = toWord(r)
@@ -204,6 +249,7 @@ export async function syncNow(): Promise<void> {
         progress: mergeProgress(s.progress, remoteProgress),
         words: mergeWords(s.words, remoteWords),
         notes: mergeNotes(s.notes, n.data as NoteRow[]),
+        tests: mergeTests(s.tests, t.data as TestRow[]),
         userChapters: JSON.stringify(chapters) === JSON.stringify(s.userChapters) ? s.userChapters : chapters,
       }),
       { fromSync: true },
@@ -230,13 +276,19 @@ export async function syncNow(): Promise<void> {
     const unsent = Object.values(local.notes).filter((x) => !x.synced)
     if (unsent.length)
       ups.push(supabase.from('lesson_notes').upsert(unsent.map((x) => noteToRow(x, userId)), { onConflict: 'id', ignoreDuplicates: true }))
+    // 테스트 결과도 보내기만 함
+    const unsentTests = Object.values(local.tests).filter((x) => !x.synced)
+    if (unsentTests.length)
+      ups.push(supabase.from('word_tests').upsert(unsentTests.map((x) => testToRow(x, userId)), { onConflict: 'id', ignoreDuplicates: true }))
     for (const r of await Promise.all(ups)) if (r.error) throw r.error
-    if (unsent.length) {
+    if (unsent.length || unsentTests.length) {
       const sent = new Set(unsent.map((x) => x.id))
+      const sentTests = new Set(unsentTests.map((x) => x.id))
       setState(
         (s) => ({
           ...s,
           notes: Object.fromEntries(Object.entries(s.notes).map(([k, v]) => [k, sent.has(k) ? { ...v, synced: true, status: v.status ?? 'new' } : v])),
+          tests: Object.fromEntries(Object.entries(s.tests).map(([k, v]) => [k, sentTests.has(k) ? { ...v, synced: true } : v])),
         }),
         { fromSync: true },
       )

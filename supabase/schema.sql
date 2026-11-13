@@ -131,3 +131,41 @@ grant select, insert on public.lesson_notes to authenticated;
 grant select on public.user_chapters to authenticated;
 
 notify pgrst, 'reload schema';
+
+-- ═════════ 매일 단어 테스트 ═════════
+
+-- 8) 단어에 ★중요 표시 (학생이 앱에서, 선생님이 npm run teacher -- star 로). 단어 테스트 복습 칸에 먼저 나옴
+alter table public.custom_words add column if not exists important boolean not null default false;
+
+-- 9) 단어 테스트 결과 (한 번 볼 때마다 한 줄). 학생은 보내고 볼 수만 있음, 선생님은 비밀 키로 읽음
+create table if not exists public.word_tests (
+  id uuid primary key,                         -- 앱에서 만든 id (오프라인에서 봐도 중복 업로드 안 되게)
+  user_id uuid not null references auth.users on delete cascade default auth.uid(),
+  day date not null,                           -- 시험 본 날 (학생 휴대폰 기준)
+  items jsonb not null check (jsonb_typeof(items) = 'array'),
+                                               -- [{ key, en, ko, part: 'new'|'review', why?, ok, skip? }]
+  score smallint not null,
+  total smallint not null check (total between 1 and 100),
+  started_at timestamptz not null,
+  finished_at timestamptz not null,
+  created_at timestamptz not null default now(),
+  constraint word_tests_score_range check (score between 0 and total)
+);
+create index if not exists word_tests_user_day_idx on public.word_tests (user_id, day);
+
+alter table public.word_tests enable row level security;
+
+drop policy if exists "read own tests" on public.word_tests;
+create policy "read own tests" on public.word_tests
+  for select to authenticated
+  using ((select auth.uid()) = user_id);
+
+drop policy if exists "send own tests" on public.word_tests;
+create policy "send own tests" on public.word_tests
+  for insert to authenticated
+  with check ((select auth.uid()) = user_id);
+
+revoke all on public.word_tests from anon, authenticated;
+grant select, insert on public.word_tests to authenticated;
+
+notify pgrst, 'reload schema';

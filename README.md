@@ -55,6 +55,17 @@ If sync fails, the app keeps working: everything is saved on the phone first, an
 
 In **Table Editor → custom_words → Insert row**, fill in `en`, `ko` and `deck`, and set `user_id` to the student's UUID (shown under Authentication → Users). The word appears in the student's word list and today's review the next time the app opens or comes back to the foreground.
 
+## Daily word test
+
+The student memorises about 20 words a day and types them into **단어장** (one at a time, or **여러 개 붙여넣기**). **단어 테스트** on the home screen (`#/test`) then builds the day's test:
+
+- **New words:** every word added on the most recent day that has words (up to 30). If that day has fewer than 20, older words that have never been tested fill it up to 20.
+- **Review words:** 10, or more if the new words are few, so the test reaches 30. In this order: words missed or answered "모르겠어요" in the last test that had them; words marked ★ important; words the student keeps missing in review; then random older words, least recently tested first. If there are not enough of the student's own words, studied lesson words fill in.
+
+Each question shows the English word with four meanings to pick from, plus a **모르겠어요** button so the student doesn't guess. Each word is asked once, and every answer also updates spaced repetition. Only finished tests are saved. They sync to the `word_tests` table, and the student can send and read them but not change them.
+
+★ important can be set by the student (word list or word form) or by you (`npm run teacher -- star <word>`).
+
 ## Student notes → personal lessons
 
 The student can leave a note from any lesson: the **메모** button in every stage header (the current card, word, sentence or question is picked for them), **왜 틀렸는지 모르겠다면** after a wrong quiz answer, or **내 메모** at the bottom of the lesson page. The form is fixed, not free text:
@@ -71,6 +82,9 @@ npm run teacher -- notes            # new notes, with the lesson content each on
 npm run teacher -- push personal/2026-11-14-me-ing.ts   # check, upload, mark the notes in meta.notes as done
 npm run teacher -- done <note-id> --reply "..."         # reply without a lesson
 npm run teacher -- chapters | pull <id> | rm <id> | users
+npm run teacher -- progress [--days 14]   # study days, lesson stages and quiz scores, words added per day, review state, test summary
+npm run teacher -- tests [--days 7]       # each word test: score, missed words; words missed twice or more
+npm run teacher -- star postpone "in advance" [--off]   # mark the student's words as important
 ```
 
 The script needs `SUPABASE_SECRET_KEY=sb_secret_...` in `.env.local` (Project Settings → API Keys → Secret keys). The key bypasses Row Level Security, so it stays on your machine; the script never prints it. `push` runs the same checks as the build and uploads nothing if one fails. The app checks each personal chapter again and skips any broken one. No redeploy is needed: the student gets new chapters on the next sync.
@@ -97,6 +111,7 @@ scripts/check-content.ts      content validator (runs on every build)
 src/lib/store.ts              local state + actions (progress, review, custom words)
 src/lib/sync.ts               Supabase sync (pull → per-item newest-wins merge → push changes)
 src/lib/srs.ts                Leitner-box spaced repetition (1, 3, 7, 14, 30, 60 days)
-src/screens/                  Home, Lesson, Cards, Review, Words, WordForm, BulkAdd, Settings, Login
+src/lib/wordtest.ts           which words go into the daily word test
+src/screens/                  Home, Lesson, Cards, Review, WordTest, Words, WordForm, BulkAdd, Settings, Login
 supabase/schema.sql           tables + row-level security
 ```

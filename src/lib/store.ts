@@ -35,6 +35,8 @@ export interface CustomWord {
   tip?: string
   /** 묶음 이름 (예: '내 단어', 'Day 1') */
   deck: string
+  /** ★ 중요 표시: 단어 테스트 복습 칸에 먼저 나옴 */
+  important?: boolean
   createdAt: number
   updatedAt: number
   /** 삭제 표시 (동기화를 위해 바로 지우지 않음) */
@@ -73,6 +75,34 @@ export interface LessonNote {
   reply?: string
 }
 
+/** 단어 테스트 한 문제의 결과 (DB 표 word_tests.items 의 한 칸) */
+export interface WordTestItem {
+  key: string
+  en: string
+  ko: string
+  /** new = 가장 최근에 넣은 단어, review = 이전 단어 */
+  part: 'new' | 'review'
+  /** 복습 단어가 뽑힌 이유 */
+  why?: 'missed' | 'star' | 'weak' | 'random'
+  ok: boolean
+  /** "모르겠어요" 를 누름 */
+  skip?: boolean
+}
+
+/** 단어 테스트 한 번 (DB 표 word_tests 와 1:1). 끝까지 본 것만 저장 */
+export interface WordTest {
+  id: string
+  /** 시험 본 날 'YYYY-MM-DD' */
+  day: string
+  startedAt: number
+  finishedAt: number
+  items: WordTestItem[]
+  score: number
+  total: number
+  /** 서버에 올라갔는지 */
+  synced?: boolean
+}
+
 export interface Settings {
   /** 발음 속도 */
   rate: number
@@ -89,6 +119,8 @@ export interface State {
   progress: Progress
   words: Record<string, CustomWord>
   notes: Record<string, LessonNote>
+  /** 단어 테스트 기록 (key: id) */
+  tests: Record<string, WordTest>
   /** 이 학생에게만 보이는 맞춤 챕터 (서버 user_chapters 의 사본. 오프라인에서도 보이게 저장) */
   userChapters: Chapter[]
   settings: Settings
@@ -108,6 +140,7 @@ function load(): State {
         progress: { ...emptyProgress(), ...s.progress },
         words: s.words ?? {},
         notes: s.notes ?? {},
+        tests: s.tests ?? {},
         userChapters: s.userChapters ?? [],
         settings: { ...defaultSettings, ...s.settings },
       }
@@ -115,7 +148,7 @@ function load(): State {
   } catch {
     /* 손상된 저장 데이터는 무시 */
   }
-  return { progress: emptyProgress(), words: {}, notes: {}, userChapters: [], settings: defaultSettings }
+  return { progress: emptyProgress(), words: {}, notes: {}, tests: {}, userChapters: [], settings: defaultSettings }
 }
 
 let state: State = load()
@@ -252,6 +285,18 @@ export function startWords(keys: string[]) {
       }
     return changed ? { ...s, progress: { ...s.progress, srs } } : s
   })
+}
+
+export function setImportant(id: string, important: boolean) {
+  setState((s) => {
+    const w = s.words[id]
+    if (!w || !!w.important === important) return s
+    return { ...s, words: { ...s.words, [id]: { ...w, important: important || undefined, updatedAt: Date.now() } } }
+  })
+}
+
+export function saveTest(t: WordTest) {
+  setState((s) => ({ ...s, tests: { ...s.tests, [t.id]: t } }))
 }
 
 export function setSettings(patch: Partial<Settings>) {

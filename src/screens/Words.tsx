@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { BookPlus, ClipboardPaste, Layers, Plus, Search } from 'lucide-react'
-import { useStore } from '../lib/store.ts'
+import { setImportant, useStore } from '../lib/store.ts'
 import { customWords, lessonWordList, type StudyWord } from '../lib/words.ts'
 import { boxLabel } from '../lib/srs.ts'
 import { go, href, replace } from '../lib/router.ts'
@@ -111,6 +111,8 @@ export function Words({ view }: { view: 'mine' | 'lesson' }) {
                 level={boxLabel(srs[w.key])}
                 hideKo={hideKo}
                 onEdit={w.customId ? () => go('words', 'edit', w.customId!) : undefined}
+                important={w.important}
+                onStar={w.customId ? () => setImportant(w.customId!, !w.important) : undefined}
               />
             ))}
           </ul>

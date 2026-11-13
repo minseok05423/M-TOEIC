@@ -2726,3 +2726,112 @@ body.sheet-open {
     transition: none !important;
   }
 }
+
+/* ───────── 단어 테스트 ───────── */
+.test-plan {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.test-plan li {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 12px;
+  background: var(--sunk);
+  border-radius: var(--r-sm);
+  line-height: 1.4;
+}
+.test-plan li span {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+.test-hint {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--hl-soft);
+  color: var(--on-hl);
+  border-radius: var(--r-sm);
+  line-height: 1.45;
+}
+.review-card .test-hint .btn {
+  margin-top: 0;
+}
+.test-skip {
+  margin-top: 4px;
+  color: var(--muted);
+}
+.test-history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.test-history li + li {
+  border-top: 1px dashed var(--line);
+}
+.test-history summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  list-style: none;
+  cursor: pointer;
+}
+.test-history summary::-webkit-details-marker {
+  display: none;
+}
+.test-history summary b {
+  font-family: var(--serif);
+  font-size: 1.1rem;
+}
+.test-history summary svg {
+  margin-left: auto;
+  color: var(--muted);
+}
+.th-day {
+  min-width: 4.5em;
+  font-weight: 700;
+}
+.th-wrong {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 0 0 12px;
+}
+.th-wrong .en-serif {
+  font-weight: 700;
+}
+.form label.toggle {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.form label.toggle .hint {
+  display: block;
+  font-weight: 400;
+}
+.star-btn {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  margin-right: -6px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--line-strong);
+  cursor: pointer;
+}
+.star-btn.on {
+  color: var(--hl);
+}
+.star-btn.on svg {
+  fill: currentColor;
+  stroke: var(--edge);
+}

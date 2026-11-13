@@ -8,6 +8,9 @@
  *   pull <챕터id> [--user 이메일]     서버의 맞춤 챕터를 personal/<챕터id>.ts 로 내려받기 (파일을 잃어버렸을 때)
  *   rm <챕터id> [--user 이메일]       맞춤 챕터 내리기 (학생 화면에서 사라짐. 학습 기록은 남음)
  *   users                             학생 계정과 메모 수
+ *   progress [--days 14] [--user 이메일]   진도: 공부한 날, 레슨 단계·퀴즈 점수, 넣은 단어 수, 복습 상태, 테스트 요약
+ *   tests [--days 7] [--user 이메일]       단어 테스트: 날마다 점수, 틀린 단어, 자주 틀리는 단어
+ *   star <영어 단어> [...] [--off]          학생 단어에 ★중요 표시 (다음 테스트 복습 칸에 먼저 나옴)
  *
  * .env.local 에 SUPABASE_SECRET_KEY (대시보드 → Project Settings → API Keys → Secret key) 가 있어야 해요.
  * 이 키는 RLS 를 건너뛰는 관리자 키라서 VITE_ 를 붙이면 안 되고(앱에 들어감), 화면에도 출력하지 않아요.
@@ -20,6 +23,7 @@ import { CHAPTERS } from '../src/content/chapters/index.ts'
 import { validateChapters } from '../src/content/validate.ts'
 import { plainText, tapPlain } from '../src/content/markup.ts'
 import type { Chapter, Lesson, PersonalMeta } from '../src/content/types.ts'
+import type { LessonProgress, Progress, WordTestItem } from '../src/lib/store.ts'
 
 for (const f of ['.env.local', '.env']) if (existsSync(f)) process.loadEnvFile(f)
 const url = process.env.VITE_SUPABASE_URL?.replace(/\/$/, '')
@@ -262,6 +266,141 @@ async function users() {
   }
 }
 
-const commands: Record<string, () => Promise<void>> = { notes, push, done, chapters, pull, rm, users }
+// ───────── 진도 · 단어 테스트 ─────────
+/** 학생 휴대폰과 같은 한국 시간 기준 'YYYY-MM-DD' */
+const kday = (d: Date | number | string = new Date()) => new Date(new Date(d).getTime() + 9 * 3600e3).toISOString().slice(0, 10)
+const shift = (day: string, n: number) => kday(Date.parse(`${day}T12:00:00+09:00`) + n * 86400e3)
+const md = (day: string) => `${Number(day.slice(5, 7))}/${Number(day.slice(8, 10))}`
+const days = (k: string, d: number) => Math.max(1, Number(flag(k) ?? d) || d)
+
+interface TestRow {
+  id: string
+  day: string
+  items: WordTestItem[]
+  score: number
+  total: number
+  finished_at: string
+}
+
+async function loadTests(userId: string, since?: string): Promise<TestRow[]> {
+  let q = db.from('word_tests').select('id, day, items, score, total, finished_at').eq('user_id', userId).order('finished_at')
+  if (since) q = q.gte('day', since)
+  const { data, error } = await q
+  if (error) die(error.message)
+  return data as TestRow[]
+}
+
+const partScore = (t: TestRow, part: WordTestItem['part']) => {
+  const xs = t.items.filter((x) => x.part === part)
+  return xs.length ? `${xs.filter((x) => x.ok).length}/${xs.length}` : '-'
+}
+
+async function progress() {
+  const user = await pickUser()
+  const n = days('days', 14)
+  const t = kday()
+  const [p, w, tests, chapterList] = await Promise.all([
+    db.from('progress').select('data, updated_at').eq('user_id', user.id).maybeSingle(),
+    db.from('custom_words').select('en, created_at, deleted, important').eq('user_id', user.id),
+    loadTests(user.id),
+    chaptersFor(user.id),
+  ])
+  if (p.error) die(p.error.message)
+  if (w.error) die(w.error.message)
+  const pr = (p.data?.data ?? { lessons: {}, srs: {}, days: {} }) as Progress
+  const studied = pr.days ?? {}
+  console.log(`# 진도 — ${user.email} (오늘 ${t}, 마지막 동기화 ${p.data ? kday(p.data.updated_at) + ' ' + new Date(p.data.updated_at).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit' }) : '없음'})\n`)
+
+  let streak = 0
+  for (let d = studied[t] ? t : shift(t, -1); studied[d]; d = shift(d, -1)) streak++
+  const cal = Array.from({ length: n }, (_, i) => shift(t, i - n + 1))
+  console.log(`공부한 날 (최근 ${n}일, ■ = 공부함): ${cal.map((d) => (studied[d] ? '■' : '□')).join('')}  · 연속 ${streak}일 · 전체 ${Object.keys(studied).length}일`)
+  const testDays = new Set(tests.map((x) => x.day))
+  console.log(`단어 테스트 본 날 (최근 ${n}일):           ${cal.map((d) => (testDays.has(d) ? '■' : '□')).join('')}`)
+
+  console.log('\n## 레슨')
+  const stage = (ok: boolean | undefined, label: string) => `${ok ? '✓' : '·'}${label}`
+  for (const ch of [...chapterList].sort((a, b) => b.date.localeCompare(a.date))) {
+    console.log(`[${ch.date}] ${ch.title}${CHAPTERS.some((c) => c.id === ch.id) ? '' : ' (맞춤)'}`)
+    for (const l of ch.lessons) {
+      const lp: LessonProgress | undefined = pr.lessons?.[`${ch.id}/${l.id}`]
+      const started = l.words.filter((x) => pr.srs?.[`w:${(x.id ?? x.en).toLowerCase()}`]).length
+      const parts = [stage(lp?.read, '개념')]
+      if (l.words.length) parts.push(stage(!!lp?.cards || started === l.words.length, `단어 ${started}/${l.words.length}`))
+      parts.push(stage(lp?.sentences, '뼈대'))
+      parts.push(lp?.quizTotal ? `✓퀴즈 최고 ${lp.quizBest}/${lp.quizTotal} · 마지막 ${lp.quizLast}/${lp.quizTotal}${lp.wrong?.length ? ` (틀림 ${lp.wrong.join(',')})` : ''}` : '·퀴즈')
+      console.log(`  - ${l.title} (${l.id}): ${parts.join('  ')}${lp ? `  · ${kday(lp.u)}` : '  · 시작 안 함'}`)
+    }
+  }
+
+  const mine = (w.data ?? []).filter((x) => !x.deleted)
+  const perDay = new Map<string, number>()
+  for (const x of mine) perDay.set(kday(x.created_at), (perDay.get(kday(x.created_at)) ?? 0) + 1)
+  console.log(`\n## 내 단어 ${mine.length}개 (★ ${mine.filter((x) => x.important).length})`)
+  console.log(`넣은 날 (최근 ${n}일): ${cal.filter((d) => perDay.has(d)).map((d) => `${md(d)} ${perDay.get(d)}개`).join(' · ') || '없음'}`)
+
+  const cards = Object.values(pr.srs ?? {})
+  const box = Array.from({ length: 7 }, (_, b) => cards.filter((c) => c.box === b).length)
+  console.log(`\n## 복습 (간격 반복)`)
+  console.log(`외우는 단어 ${cards.length} · 오늘까지 복습할 것 ${cards.filter((c) => c.due <= t).length} · 상자별 [새 ${box[0]} | ${box.slice(1, 6).join(' | ')} | 완벽 ${box[6]}]`)
+
+  const recent = tests.filter((x) => x.day >= cal[0])
+  console.log(`\n## 단어 테스트 (최근 ${n}일 ${recent.length}번${recent.length ? `, 평균 ${Math.round((100 * recent.reduce((a, x) => a + x.score / x.total, 0)) / recent.length)}%` : ''})`)
+  for (const x of recent.slice(-7)) console.log(`  ${x.day}  ${x.score}/${x.total}  (새 ${partScore(x, 'new')} · 복습 ${partScore(x, 'review')})`)
+  if (recent.length) console.log('  자세히: npm run teacher -- tests')
+}
+
+async function tests() {
+  const user = await pickUser()
+  const n = days('days', 7)
+  const since = shift(kday(), -(n - 1))
+  const all = await loadTests(user.id)
+  const list = all.filter((x) => x.day >= since)
+  console.log(`# 단어 테스트 — ${user.email} (최근 ${n}일: ${list.length}번, 전체 ${all.length}번)\n`)
+  if (!list.length) console.log('이 기간에 본 테스트가 없어요. (끝까지 본 테스트만 저장돼요)')
+  for (const x of list) {
+    const time = new Date(x.finished_at).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit' })
+    console.log(`## ${x.day} ${time} — ${x.score}/${x.total} (새 단어 ${partScore(x, 'new')} · 복습 ${partScore(x, 'review')})`)
+    const bad = x.items.filter((i) => !i.ok)
+    const fmt = (i: WordTestItem) => `${i.en}(${i.ko}${i.part === 'review' && i.why ? `, ${{ missed: '재출제', star: '★', weak: '약함', random: '랜덤' }[i.why]}` : ''})`
+    if (bad.filter((i) => !i.skip).length) console.log(`- 틀림: ${bad.filter((i) => !i.skip).map(fmt).join(' · ')}`)
+    if (bad.filter((i) => i.skip).length) console.log(`- 모르겠어요: ${bad.filter((i) => i.skip).map(fmt).join(' · ')}`)
+    if (!bad.length) console.log('- 만점')
+  }
+
+  // 전체 기록 기준: 2번 이상 틀린 단어, 지금 "틀린 채로" 남아 있는 단어
+  const stats = new Map<string, { en: string; ko: string; wrong: number; seen: number; lastOk: boolean }>()
+  for (const x of all)
+    for (const i of x.items) {
+      const s = stats.get(i.key) ?? { en: i.en, ko: i.ko, wrong: 0, seen: 0, lastOk: true }
+      s.seen++
+      if (!i.ok) s.wrong++
+      s.lastOk = i.ok
+      stats.set(i.key, s)
+    }
+  const often = [...stats.values()].filter((s) => s.wrong >= 2).sort((a, b) => b.wrong - a.wrong)
+  const open = [...stats.values()].filter((s) => !s.lastOk)
+  console.log(`\n자주 틀리는 단어 (2번 이상): ${often.map((s) => `${s.en}(${s.ko}) ${s.wrong}/${s.seen}`).join(' · ') || '없음'}`)
+  console.log(`다음 테스트에 다시 나올 단어 (마지막에 틀림): ${open.length}개${open.length ? ` — ${open.map((s) => s.en).join(', ')}` : ''}`)
+}
+
+async function star() {
+  if (!args.length) die('★ 표시할 영어 단어를 주세요: npm run teacher -- star postpone "in advance"')
+  const user = await pickUser()
+  const { data, error } = await db.from('custom_words').select('id, en').eq('user_id', user.id).eq('deleted', false)
+  if (error) die(error.message)
+  const want = new Set(args.map((a) => a.trim().toLowerCase()))
+  const hit = data.filter((x) => want.has(x.en.trim().toLowerCase()))
+  const missing = [...want].filter((a) => !hit.some((x) => x.en.trim().toLowerCase() === a))
+  const on = !flags.has('off')
+  if (hit.length) {
+    const r = await db.from('custom_words').update({ important: on }).in('id', hit.map((x) => x.id))
+    if (r.error) die(r.error.message)
+  }
+  console.log(`✓ ${hit.length}개 ${on ? '★ 표시' : '★ 해제'}${hit.length ? `: ${hit.map((x) => x.en).join(', ')}` : ''}`)
+  if (missing.length) console.log(`  학생 단어장에 없는 단어: ${missing.join(', ')}`)
+}
+
+const commands: Record<string, () => Promise<void>> = { notes, push, done, chapters, pull, rm, users, progress, tests, star }
 const run = commands[cmd ?? ''] ?? (() => die(`명령: ${Object.keys(commands).join(' | ')}  (자세한 건 scripts/teacher.ts 맨 위)`))
 await run()

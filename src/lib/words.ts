@@ -10,6 +10,8 @@ export interface StudyWord {
   ko: string
   ex?: Example
   tip?: string
+  /** ★ 중요 (내 단어만) */
+  important?: boolean
   group: string
   origin: 'lesson' | 'custom'
   chapterId?: string
@@ -70,6 +72,7 @@ export function fromCustom(w: CustomWord): StudyWord {
     ko: w.ko,
     ex: w.exEn ? { en: w.exEn, ko: w.exKo ?? '' } : undefined,
     tip: w.tip,
+    important: w.important || undefined,
     group: w.deck,
     origin: 'custom',
     customId: w.id,

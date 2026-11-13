@@ -13,6 +13,7 @@ import { Review, dueWords } from './screens/Review.tsx'
 import { Words } from './screens/Words.tsx'
 import { WordForm } from './screens/WordForm.tsx'
 import { BulkAdd } from './screens/BulkAdd.tsx'
+import { WordTest } from './screens/WordTest.tsx'
 import { Settings } from './screens/Settings.tsx'
 import { Login } from './screens/Login.tsx'
 import { LogoMark } from './components/Logo.tsx'
@@ -46,6 +47,7 @@ function Main({ session }: { session: Session | null }) {
   if (!a) screen = <Home due={due} />
   else if (a === 'l' && b && c) screen = <Lesson key={`${b}/${c}/${d ?? ''}/${e ?? ''}`} chapterId={b} lessonId={c} stage={d} sub={e} />
   else if (a === 'review') screen = <Review />
+  else if (a === 'test') screen = <WordTest />
   else if (a === 'words' && b === 'new') screen = <WordForm key="new" />
   else if (a === 'words' && b === 'bulk') screen = <BulkAdd />
   else if (a === 'words' && b === 'edit' && c) screen = <WordForm key={c} id={c} />
@@ -54,7 +56,7 @@ function Main({ session }: { session: Session | null }) {
   else if (a === 'settings') screen = <Settings session={session} />
   else screen = <Home due={due} />
 
-  const active = a === 'review' || a === 'words' || a === 'settings' ? a : a === 'l' ? 'l' : ''
+  const active = a === 'test' ? 'review' : a === 'review' || a === 'words' || a === 'settings' ? a : a === 'l' ? 'l' : ''
   return (
     <div className="app has-nav">
       <main>{screen}</main>

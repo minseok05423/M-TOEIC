@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { ArrowRight, Check, Star } from 'lucide-react'
+import { TOTAL_TARGET } from '../lib/wordtest.ts'
 import { useChapters, type ShownChapter } from '../lib/content.ts'
 import { lessonKey, useStore, type Progress } from '../lib/store.ts'
 import { addDays, formatDate, streak, today } from '../lib/date.ts'
@@ -52,6 +53,11 @@ export function Home({ due }: { due: number }) {
   const studiedToday = !!progress.days[today()]
   const chapters = useChapters()
   const up = useMemo(() => nextUp(progress, chapters), [progress, chapters])
+  const tests = useStore((s) => s.tests)
+  const testToday = useMemo(
+    () => Object.values(tests).filter((t) => t.day === today()).sort((a, b) => b.finishedAt - a.finishedAt)[0],
+    [tests],
+  )
 
   return (
     <div className="page home">
@@ -81,6 +87,24 @@ export function Home({ due }: { due: number }) {
 
       <section className="todo">
         <h2 className="todo-title">오늘 할 일</h2>
+        <a className={`todo-item ${testToday ? 'done' : ''}`} href={href('test')}>
+          <span className="todo-box">{testToday && <Check size={16} strokeWidth={3.2} />}</span>
+          <span className="todo-text">
+            <span>
+              {testToday ? (
+                <>
+                  단어 테스트 <b>{testToday.score}/{testToday.total}</b>
+                </>
+              ) : (
+                <>
+                  단어 테스트 <b>{TOTAL_TARGET}문제</b>
+                </>
+              )}
+            </span>
+            <span className="todo-sub">{testToday ? '틀린 단어는 다음 테스트에 다시 나와요' : '오늘 외운 단어 + 이전 단어 복습'}</span>
+          </span>
+          {!testToday && <ArrowRight className="todo-go" size={20} />}
+        </a>
         <a className={`todo-item ${due ? '' : 'done'}`} href={href('review')}>
           <span className="todo-box">{!due && <Check size={16} strokeWidth={3.2} />}</span>
           <span className="todo-text">

@@ -42,7 +42,7 @@ try {
   bad(`접속 실패: ${(e as Error).message}`, 'VITE_SUPABASE_URL 이 맞는지, 인터넷이 되는지 확인하세요.')
 }
 
-for (const table of ['progress', 'custom_words', 'lesson_notes', 'user_chapters']) {
+for (const table of ['progress', 'custom_words', 'lesson_notes', 'user_chapters', 'word_tests']) {
   try {
     const r = await fetch(`${url}/rest/v1/${table}?select=*&limit=0`, { headers })
     const body = (await r.json().catch(() => ({}))) as { code?: string; message?: string }

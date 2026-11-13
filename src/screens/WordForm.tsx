@@ -9,10 +9,10 @@ export function WordForm({ id }: { id?: string }) {
   const words = useStore((s) => s.words)
   const existing = id ? words[id] : undefined
   const deckList = useMemo(() => decks(words), [words])
-  const blank = () => ({ en: '', ko: '', exEn: '', exKo: '', tip: '', deck: getState().settings.lastDeck })
+  const blank = () => ({ en: '', ko: '', exEn: '', exKo: '', tip: '', deck: getState().settings.lastDeck, important: false })
   const [f, setF] = useState(() =>
     existing
-      ? { en: existing.en, ko: existing.ko, exEn: existing.exEn ?? '', exKo: existing.exKo ?? '', tip: existing.tip ?? '', deck: existing.deck }
+      ? { en: existing.en, ko: existing.ko, exEn: existing.exEn ?? '', exKo: existing.exKo ?? '', tip: existing.tip ?? '', deck: existing.deck, important: !!existing.important }
       : blank(),
   )
   const [saved, setSaved] = useState(0)
@@ -26,7 +26,7 @@ export function WordForm({ id }: { id?: string }) {
       </div>
     )
 
-  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value })
+  const set = (k: 'en' | 'ko' | 'exEn' | 'exKo' | 'tip' | 'deck') => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value })
   const valid = f.en.trim() && f.ko.trim()
   const dup =
     !existing &&
@@ -44,6 +44,7 @@ export function WordForm({ id }: { id?: string }) {
       exKo: f.exKo.trim() || undefined,
       tip: f.tip.trim() || undefined,
       deck: f.deck.trim() || '내 단어',
+      important: f.important || undefined,
       createdAt: existing?.createdAt,
     })
     if (!existing) startWords([`c:${wid}`])
@@ -98,6 +99,12 @@ export function WordForm({ id }: { id?: string }) {
             ))}
           </datalist>
           <span className="hint">예: 내 단어, Day 3, 해커스 Part 5 … 같은 묶음끼리 카드로 외울 수 있어요</span>
+        </label>
+        <label className="toggle">
+          <span>
+            ★ 중요 단어 <span className="hint">단어 테스트에 더 자주 나와요</span>
+          </span>
+          <input type="checkbox" className="switch" checked={f.important} onChange={(e) => setF({ ...f, important: e.target.checked })} />
         </label>
         <details open={!!(f.exEn || f.exKo || f.tip)}>
           <summary>
