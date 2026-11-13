@@ -4,5 +4,6 @@
  */
 import type { Chapter } from '../types.ts'
 import { chapter as c20261111 } from './2026-11-11/index.ts'
+import { chapter as c20261114 } from './2026-11-14/index.ts'
 
-export const CHAPTERS: Chapter[] = [c20261111].sort((a, b) => b.date.localeCompare(a.date))
+export const CHAPTERS: Chapter[] = [c20261111, c20261114].sort((a, b) => b.date.localeCompare(a.date))
