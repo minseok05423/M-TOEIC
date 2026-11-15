@@ -61,17 +61,21 @@ for (let i = 0; i < rest.length; i++) {
 const flag = (k: string) => (typeof flags.get(k) === 'string' ? (flags.get(k) as string) : undefined)
 
 // ───────── 학생 ─────────
-async function allUsers(): Promise<User[]> {
+/** 관리자 계정 (app_metadata.role = 'supervisor'). 학생 목록에서 빠짐. app_metadata 는 비밀 키로만 바꿀 수 있음 */
+const isSupervisor = (u: User) => u.app_metadata?.role === 'supervisor'
+
+/** 학생 계정만 (includeSupervisors 면 관리자도) */
+async function allUsers(includeSupervisors = false): Promise<User[]> {
   const { data, error } = await db.auth.admin.listUsers({ perPage: 1000 })
   if (error) die(`학생 목록을 못 가져옴: ${error.message}`)
-  return data.users
+  return includeSupervisors ? data.users : data.users.filter((u) => !isSupervisor(u))
 }
 
-/** --user 가 없고 학생이 한 명뿐이면 그 학생 */
+/** --user 가 없고 학생이 한 명뿐이면 그 학생 (관리자 계정은 --user 로 이메일을 적었을 때만) */
 async function pickUser(email = flag('user')): Promise<User> {
   const users = await allUsers()
   if (email) {
-    const u = users.find((x) => x.email?.toLowerCase() === email.toLowerCase())
+    const u = (await allUsers(true)).find((x) => x.email?.toLowerCase() === email.toLowerCase())
     if (!u) die(`학생 "${email}" 이 없어요. 있는 계정: ${users.map((x) => x.email).join(', ') || '(없음)'}`)
     return u
   }
@@ -264,6 +268,8 @@ async function users() {
   const list = await allUsers()
   const { data, error } = await db.from('lesson_notes').select('user_id, status')
   if (error) die(error.message)
+  for (const u of await allUsers(true))
+    if (isSupervisor(u)) console.log(`- ${u.email}: 관리자 (supervisor) · 마지막 로그인 ${u.last_sign_in_at?.slice(0, 10) ?? '없음'}`)
   if (!list.length) return console.log('학생 계정이 없어요 (Authentication → Users → Add user)')
   for (const u of list) {
     const mine = data.filter((n) => n.user_id === u.id)
