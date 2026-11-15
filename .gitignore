@@ -5,3 +5,7 @@ dist
 .env.*
 !.env.example
 .vercel
+# Astryx theme editor previews (rebuild with: npx astryx experimental theme editor show notebook --png)
+themes/*/preview.html
+themes/*/sheet.html
+themes/*/*.png

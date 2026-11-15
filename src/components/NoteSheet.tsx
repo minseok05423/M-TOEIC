@@ -1,10 +1,27 @@
-import { useEffect, useRef, useState } from 'react'
-import { CircleCheck, Lightbulb, CircleHelp, X, CloudOff } from 'lucide-react'
+import { useState } from 'react'
+import { CircleCheck, CircleHelp, CloudOff, Lightbulb } from 'lucide-react'
+import { BottomSheet } from '@astryxdesign/core/BottomSheet'
+import { VStack } from '@astryxdesign/core/VStack'
+import { HStack } from '@astryxdesign/core/HStack'
+import { StackItem } from '@astryxdesign/core/Stack'
+import { Grid } from '@astryxdesign/core/Grid'
+import { Heading, Text } from '@astryxdesign/core/Text'
+import { Button } from '@astryxdesign/core/Button'
+import { Icon } from '@astryxdesign/core/Icon'
+import { Banner } from '@astryxdesign/core/Banner'
+import { SelectableCard } from '@astryxdesign/core/SelectableCard'
+import { Selector } from '@astryxdesign/core/Selector'
+import { TextArea } from '@astryxdesign/core/TextArea'
+import { TextInput } from '@astryxdesign/core/TextInput'
+import { ToggleButton } from '@astryxdesign/core/ToggleButton'
+import { EmptyState } from '@astryxdesign/core/EmptyState'
+import { useImperativeAlertDialog } from '@astryxdesign/core/AlertDialog'
 import type { Lesson } from '../content/types.ts'
 import { addNote, type NoteCategory, type NoteKind } from '../lib/store.ts'
 import { CATEGORIES, findTarget, LEVELS, lessonTargets, MIN_CHARS, textLen, WHOLE } from '../lib/notes.ts'
 import { supabase, useSession } from '../lib/supabase.ts'
 import { sfx } from '../lib/sfx.ts'
+import { type as t } from '../ui/styles.ts'
 
 interface Props {
   chapterId: string
@@ -12,15 +29,42 @@ interface Props {
   /** 처음에 골라 둘 곳 (lib/notes.ts 의 NoteTarget id) */
   targetId?: string
   kind?: NoteKind
+  isOpen: boolean
   onClose: () => void
 }
+
+/** 여러 버튼을 묶는 칸의 제목 (필수) */
+function Group({ label, description, children }: { label: string; description?: string; children: React.ReactNode }) {
+  return (
+    <VStack gap={2} role="group" aria-label={label}>
+      <VStack gap={0.5}>
+        <Text type="label">
+          {label}{' '}
+          <Text type="inherit" color="accent">
+            *
+          </Text>
+        </Text>
+        {description && <Text type="supporting">{description}</Text>}
+      </VStack>
+      {children}
+    </VStack>
+  )
+}
+
+/** 글자 수: 8자 이상이면 체크 */
+const counter = (s: string) => {
+  const n = textLen(s)
+  return n >= MIN_CHARS ? '충분해요' : `${n}/${MIN_CHARS}자`
+}
+const lenStatus = (s: string) => (textLen(s) >= MIN_CHARS ? ({ type: 'success' } as const) : undefined)
 
 /**
  * 메모 남기기. 자유 글 대신 칸을 정해 두고, 다 채워야 보낼 수 있음
  * (선생님이 Claude Code 로 맞춤 레슨을 만들 때 그대로 읽을 수 있게).
  */
-export function NoteSheet({ chapterId, lesson, targetId, kind: kind0, onClose }: Props) {
+export function NoteSheet({ chapterId, lesson, targetId, kind: kind0, isOpen, onClose }: Props) {
   const session = useSession()
+  const confirm = useImperativeAlertDialog()
   const [kind, setKind] = useState<NoteKind | undefined>(kind0)
   const [target, setTarget] = useState(findTarget(lesson, targetId).id)
   const [category, setCategory] = useState<NoteCategory>()
@@ -29,26 +73,22 @@ export function NoteSheet({ chapterId, lesson, targetId, kind: kind0, onClose }:
   const [question, setQuestion] = useState('')
   const [example, setExample] = useState('')
   const [sent, setSent] = useState(false)
-  const sheet = useRef<HTMLDivElement>(null)
 
   const dirty = !!(point || question || example)
   const close = () => {
-    if (!sent && dirty && !confirm('쓰던 메모를 지우고 닫을까요?')) return
-    onClose()
+    if (!sent && dirty)
+      confirm.show({
+        title: '쓰던 메모를 지울까요?',
+        description: '닫으면 지금까지 쓴 내용이 사라져요.',
+        actionLabel: '지우고 닫기',
+        cancelLabel: '계속 쓰기',
+        onAction: () => {
+          confirm.hide()
+          onClose()
+        },
+      })
+    else onClose()
   }
-
-  const closeRef = useRef(close)
-  closeRef.current = close
-  useEffect(() => {
-    document.body.classList.add('sheet-open')
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && closeRef.current()
-    window.addEventListener('keydown', onKey)
-    sheet.current?.focus()
-    return () => {
-      document.body.classList.remove('sheet-open')
-      window.removeEventListener('keydown', onKey)
-    }
-  }, [])
 
   const missing: string[] = []
   if (!kind) missing.push('종류 고르기')
@@ -63,14 +103,14 @@ export function NoteSheet({ chapterId, lesson, targetId, kind: kind0, onClose }:
   function submit(e: React.FormEvent) {
     e.preventDefault()
     if (missing.length || !kind) return
-    const t = findTarget(lesson, target)
+    const tg = findTarget(lesson, target)
     addNote({
       chapterId,
       lessonId: lesson.id,
       lessonTitle: lesson.title,
-      stage: t.stage,
-      targetId: t.id || undefined,
-      targetLabel: t.id ? t.label : undefined,
+      stage: tg.stage,
+      targetId: tg.id || undefined,
+      targetLabel: tg.id ? tg.label : undefined,
       kind,
       category: kind === 'confusing' ? category : undefined,
       level: kind === 'confusing' ? level : undefined,
@@ -83,164 +123,177 @@ export function NoteSheet({ chapterId, lesson, targetId, kind: kind0, onClose }:
   }
 
   const offline = !supabase || !session
-  const counter = (s: string) => {
-    const n = textLen(s)
-    return <span className={`count ${n >= MIN_CHARS ? 'ok' : ''}`}>{n >= MIN_CHARS ? <CircleCheck size={13} /> : `${n}/${MIN_CHARS}`}</span>
-  }
+  const hint = category ? CATEGORIES.find((c) => c.id === category)!.hint : ''
+  const targetOptions = [
+    { value: WHOLE.id || 'whole', label: WHOLE.label },
+    ...lessonTargets(lesson).map((g) => ({ type: 'section' as const, title: g.title, options: g.items.map((x) => ({ value: x.id, label: x.label })) })),
+  ]
 
   return (
-    <div className="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && close()}>
-      <div className="note-sheet" role="dialog" aria-modal="true" aria-label="메모 남기기" tabIndex={-1} ref={sheet}>
-        <div className="ns-head">
-          <h2>{sent ? '보냈어요' : '메모 남기기'}</h2>
-          <button type="button" className="ns-x" onClick={close} aria-label="닫기">
-            <X size={22} />
-          </button>
-        </div>
-
-        {sent ? (
-          <div className="ns-done">
-            <span className="badge-ico">
-              <CircleCheck size={30} />
-            </span>
-            <p>
-              {offline
-                ? '이 휴대폰에 저장했어요. 설정에서 로그인하면 선생님께 전달돼요.'
-                : '선생님께 전달돼요. 이 내용으로 나만의 레슨을 만들어 줄 거예요.'}
-            </p>
-            <button type="button" className="btn primary block big" onClick={onClose}>
-              계속 공부하기
-            </button>
-          </div>
-        ) : (
-          <form className="form" onSubmit={submit}>
+    <BottomSheet isOpen={isOpen} onOpenChange={(o) => !o && close()} label="메모 남기기" height="tall" purpose="form">
+      {sent ? (
+        <EmptyState
+          icon={<Icon icon={CircleCheck} color="success" size="lg" />}
+          title="보냈어요"
+          description={
+            offline ? '이 휴대폰에 저장했어요. 설정에서 로그인하면 선생님께 전달돼요.' : '선생님께 전달돼요. 이 내용으로 나만의 레슨을 만들어 줄 거예요.'
+          }
+          actions={<Button label="계속 공부하기" variant="primary" size="lg" onClick={onClose} />}
+        />
+      ) : (
+        <form onSubmit={submit}>
+          <VStack gap={5}>
+            <Heading level={2}>메모 남기기</Heading>
             {offline && (
-              <p className="warn small">
-                <CloudOff size={16} />
-                <span>로그인하지 않아서 이 휴대폰에만 저장돼요. 로그인하면 그때 선생님께 보내져요.</span>
-              </p>
+              <Banner
+                status="warning"
+                icon={<Icon icon={CloudOff} />}
+                title="로그인하지 않아서 이 휴대폰에만 저장돼요"
+                description="로그인하면 그때 선생님께 보내져요."
+              />
             )}
 
-            <fieldset className="ns-kind">
-              <legend>
-                어떤 메모예요? <span className="req">*</span>
-              </legend>
-              <button type="button" className={`kind-btn ${kind === 'important' ? 'on' : ''}`} aria-pressed={kind === 'important'} onClick={() => setKind('important')}>
-                <Lightbulb size={22} />
-                <b>중요한 점</b>
-                <span>꼭 기억할 것</span>
-              </button>
-              <button type="button" className={`kind-btn confusing ${kind === 'confusing' ? 'on' : ''}`} aria-pressed={kind === 'confusing'} onClick={() => setKind('confusing')}>
-                <CircleHelp size={22} />
-                <b>헷갈리는 점</b>
-                <span>잘 모르겠는 것</span>
-              </button>
-            </fieldset>
+            <Group label="어떤 메모예요?">
+              <Grid columns={2} gap={2}>
+                <SelectableCard label="중요한 점" isSelected={kind === 'important'} onChange={() => setKind('important')} padding={3}>
+                  <VStack gap={1}>
+                    <Icon icon={Lightbulb} color="warning" />
+                    <Text type="body" weight="semibold">
+                      중요한 점
+                    </Text>
+                    <Text type="supporting">꼭 기억할 것</Text>
+                  </VStack>
+                </SelectableCard>
+                <SelectableCard label="헷갈리는 점" isSelected={kind === 'confusing'} onChange={() => setKind('confusing')} padding={3}>
+                  <VStack gap={1}>
+                    <Icon icon={CircleHelp} color="info" />
+                    <Text type="body" weight="semibold">
+                      헷갈리는 점
+                    </Text>
+                    <Text type="supporting">잘 모르겠는 것</Text>
+                  </VStack>
+                </SelectableCard>
+              </Grid>
+            </Group>
 
-            <label>
-              어디에 대한 메모예요?
-              <select className="input" value={target} onChange={(e) => setTarget(e.target.value)}>
-                <option value={WHOLE.id}>{WHOLE.label}</option>
-                {lessonTargets(lesson).map((g) => (
-                  <optgroup key={g.stage} label={g.title}>
-                    {g.items.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.label}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-            </label>
+            <Selector
+              label="어디에 대한 메모예요?"
+              options={targetOptions}
+              value={target || 'whole'}
+              onChange={(v) => setTarget(v === 'whole' ? '' : (v ?? ''))}
+              presentation="adaptive"
+              hasSearch
+              searchPlaceholder="찾기"
+            />
 
             {kind === 'confusing' && (
               <>
-                <fieldset className="ns-group">
-                  <legend>
-                    어디서 막혔어요? <span className="req">*</span>
-                  </legend>
-                  <div className="chips">
+                <Group label="어디서 막혔어요?" description={hint}>
+                  <HStack gap={1} wrap="wrap">
                     {CATEGORIES.map((c) => (
-                      <button key={c.id} type="button" className={`chip ${category === c.id ? 'on' : ''}`} aria-pressed={category === c.id} onClick={() => setCategory(c.id)}>
+                      <ToggleButton key={c.id} label={c.label} size="sm" isPressed={category === c.id} onPressedChange={() => setCategory(c.id)}>
                         {c.label}
-                      </button>
+                      </ToggleButton>
                     ))}
-                  </div>
-                  {category && CATEGORIES.find((c) => c.id === category)!.hint && (
-                    <span className="hint">{CATEGORIES.find((c) => c.id === category)!.hint}</span>
-                  )}
-                </fieldset>
-                <label>
-                  <span className="label-row">
-                    <span>
-                      지금 내가 이해한 건 <span className="req">*</span>
-                    </span>
-                    {counter(point)}
-                  </span>
-                  <textarea className="input" rows={2} maxLength={600} value={point} onChange={(e) => setPoint(e.target.value)} placeholder="예: 동사 뒤에 -ing 가 오면 다 진행형인 줄 알았어요" />
-                </label>
-                <label>
-                  <span className="label-row">
-                    <span>
-                      그런데 이게 헷갈려요 <span className="req">*</span>
-                    </span>
-                    {counter(question)}
-                  </span>
-                  <textarea className="input" rows={2} maxLength={600} value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="예: enjoy reading 에서 reading 은 왜 진행형이 아니에요?" />
-                </label>
-                <fieldset className="ns-group">
-                  <legend>
-                    얼마나 헷갈려요? <span className="req">*</span>
-                  </legend>
-                  <div className="chips">
+                  </HStack>
+                </Group>
+                <TextArea
+                  label="지금 내가 이해한 건"
+                  isRequired
+                  rows={2}
+                  htmlMaxLength={600}
+                  value={point}
+                  onChange={setPoint}
+                  description={counter(point)}
+                  status={lenStatus(point)}
+                  placeholder="예: 동사 뒤에 -ing 가 오면 다 진행형인 줄 알았어요"
+                />
+                <TextArea
+                  label="그런데 이게 헷갈려요"
+                  isRequired
+                  rows={2}
+                  htmlMaxLength={600}
+                  value={question}
+                  onChange={setQuestion}
+                  description={counter(question)}
+                  status={lenStatus(question)}
+                  placeholder="예: enjoy reading 에서 reading 은 왜 진행형이 아니에요?"
+                />
+                <Group label="얼마나 헷갈려요?">
+                  <HStack gap={1} wrap="wrap">
                     {LEVELS.map((l) => (
-                      <button key={l.id} type="button" className={`chip ${level === l.id ? 'on' : ''}`} aria-pressed={level === l.id} onClick={() => setLevel(l.id)}>
+                      <ToggleButton key={l.id} label={l.label} size="sm" isPressed={level === l.id} onPressedChange={() => setLevel(l.id)}>
                         {l.label}
-                      </button>
+                      </ToggleButton>
                     ))}
-                  </div>
-                </fieldset>
-                <label>
-                  헷갈린 문장 (선택)
-                  <input className="input en-serif" maxLength={300} value={example} onChange={(e) => setExample(e.target.value)} autoCapitalize="off" placeholder="I enjoy reading books." />
-                </label>
+                  </HStack>
+                </Group>
+                <TextInput
+                  label="헷갈린 문장"
+                  isOptional
+                  value={example}
+                  onChange={(v) => setExample(v.slice(0, 300))}
+                  placeholder="I enjoy reading books."
+                  controlXstyle={t.en}
+                />
               </>
             )}
 
             {kind === 'important' && (
               <>
-                <label>
-                  <span className="label-row">
-                    <span>
-                      내 말로 정리하면 <span className="req">*</span>
-                    </span>
-                    {counter(point)}
-                  </span>
-                  <textarea className="input" rows={3} maxLength={600} value={point} onChange={(e) => setPoint(e.target.value)} placeholder="예: 문장에서 진짜 동사는 하나! 먼저 동사를 찾고 그 앞이 주어" />
-                </label>
-                <label>
-                  기억할 예문 (선택)
-                  <input className="input en-serif" maxLength={300} value={example} onChange={(e) => setExample(e.target.value)} autoCapitalize="off" placeholder="The meeting will start at 9." />
-                </label>
+                <TextArea
+                  label="내 말로 정리하면"
+                  isRequired
+                  rows={3}
+                  htmlMaxLength={600}
+                  value={point}
+                  onChange={setPoint}
+                  description={counter(point)}
+                  status={lenStatus(point)}
+                  placeholder="예: 문장에서 진짜 동사는 하나! 먼저 동사를 찾고 그 앞이 주어"
+                />
+                <TextInput
+                  label="기억할 예문"
+                  isOptional
+                  value={example}
+                  onChange={(v) => setExample(v.slice(0, 300))}
+                  placeholder="The meeting will start at 9."
+                  controlXstyle={t.en}
+                />
               </>
             )}
 
-            <div className="form-actions">
-              {missing.length > 0 && kind && <p className="hint ns-missing">남은 것: {missing.join(' · ')}</p>}
-              <button type="submit" className="btn primary block big" disabled={missing.length > 0}>
-                보내기
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
-    </div>
+            <VStack gap={2}>
+              {missing.length > 0 && kind && <Text type="supporting">남은 것: {missing.join(' · ')}</Text>}
+              <HStack gap={2}>
+                <StackItem size="static">
+                  <Button label="닫기" variant="secondary" size="lg" onClick={close} />
+                </StackItem>
+                <StackItem size="fill">
+                  <Button label="보내기" type="submit" variant="primary" size="lg" width="100%" isDisabled={missing.length > 0} />
+                </StackItem>
+              </HStack>
+            </VStack>
+          </VStack>
+        </form>
+      )}
+      {confirm.element}
+    </BottomSheet>
   )
 }
 
 /** 화면에서 메모 창을 열고 닫기 위한 작은 도우미 */
 export function useNoteSheet(chapterId: string, lesson: Lesson) {
-  const [open, setOpen] = useState<{ targetId?: string; kind?: NoteKind } | null>(null)
-  const sheet = open && <NoteSheet chapterId={chapterId} lesson={lesson} targetId={open.targetId} kind={open.kind} onClose={() => setOpen(null)} />
-  return { openNote: (targetId?: string, kind?: NoteKind) => setOpen({ targetId, kind }), sheet }
+  const [open, setOpen] = useState<{ targetId?: string; kind?: NoteKind; n: number } | null>(null)
+  const [n, setN] = useState(0)
+  const sheet = open && (
+    <NoteSheet key={open.n} chapterId={chapterId} lesson={lesson} targetId={open.targetId} kind={open.kind} isOpen onClose={() => setOpen(null)} />
+  )
+  return {
+    openNote: (targetId?: string, kind?: NoteKind) => {
+      setN(n + 1)
+      setOpen({ targetId, kind, n: n + 1 })
+    },
+    sheet,
+  }
 }

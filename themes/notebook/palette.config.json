@@ -1,0 +1,108 @@
+{
+  "modeStrategy": "light-and-dark",
+  "families": [
+    {
+      "id": "accent",
+      "name": "Accent",
+      "seed": "#ffd23f",
+      "anchors": [
+        {
+          "mode": "light",
+          "stop": 85,
+          "color": "#ffd23f",
+          "policy": "exact"
+        },
+        {
+          "mode": "dark",
+          "stop": 85,
+          "color": "#ffd23f",
+          "policy": "exact"
+        }
+      ]
+    },
+    {
+      "id": "neutral",
+      "name": "Neutral",
+      "seed": "#8a8270",
+      "kind": "neutral",
+      "anchors": [
+        {
+          "mode": "light",
+          "stop": 55,
+          "color": "#8a8270",
+          "policy": "exact"
+        },
+        {
+          "mode": "dark",
+          "stop": 55,
+          "color": "#8a8270",
+          "policy": "exact"
+        }
+      ]
+    },
+    {
+      "id": "success",
+      "name": "Success",
+      "seed": "#2c7a4b",
+      "anchors": [
+        {
+          "mode": "light",
+          "stop": 45,
+          "color": "#2c7a4b",
+          "policy": "exact"
+        }
+      ]
+    },
+    {
+      "id": "warning",
+      "name": "Warning",
+      "seed": "#b85d0f",
+      "anchors": [
+        {
+          "mode": "light",
+          "stop": 50,
+          "color": "#b85d0f",
+          "policy": "exact"
+        },
+        {
+          "mode": "dark",
+          "stop": 50,
+          "color": "#b85d0f",
+          "policy": "exact"
+        }
+      ]
+    },
+    {
+      "id": "danger",
+      "name": "Danger",
+      "seed": "#d4422b",
+      "anchors": [
+        {
+          "mode": "light",
+          "stop": 50,
+          "color": "#d4422b",
+          "policy": "exact"
+        },
+        {
+          "mode": "dark",
+          "stop": 50,
+          "color": "#d4422b",
+          "policy": "exact"
+        }
+      ]
+    },
+    {
+      "id": "info",
+      "name": "Info",
+      "seed": "#2c55c8",
+      "anchors": [
+        {
+          "mode": "light",
+          "stop": 40,
+          "color": "#2c55c8",
+          "policy": "exact"
+        }
+      ]
+    }
+  ]
+}

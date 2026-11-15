@@ -1,7 +1,16 @@
 import { useState } from 'react'
+import { VStack } from '@astryxdesign/core/VStack'
+import { Heading, Text } from '@astryxdesign/core/Text'
+import { Card } from '@astryxdesign/core/Card'
+import { Button } from '@astryxdesign/core/Button'
+import { TextInput } from '@astryxdesign/core/TextInput'
+import { Banner } from '@astryxdesign/core/Banner'
+import { FormLayout } from '@astryxdesign/core/FormLayout'
 import { supabase } from '../lib/supabase.ts'
 import { setSettings } from '../lib/store.ts'
 import { LogoMark } from '../components/Logo.tsx'
+import { Screen } from '../components/Screen.tsx'
+import { type as t } from '../ui/styles.ts'
 
 export function Login() {
   const [email, setEmail] = useState('')
@@ -30,33 +39,35 @@ export function Login() {
   }
 
   return (
-    <div className="page login">
-      <div className="login-head">
-        <LogoMark />
-        <h1 className="wordmark-text">
-          M<span>-</span>TOEIC
-        </h1>
-        <p className="login-tag">수업 끝나고 펴 보는 토익 노트</p>
-      </div>
-      <form className="sheet-card form" onSubmit={submit}>
-        <label>
-          이메일
-          <input className="input" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        </label>
-        <label>
-          비밀번호
-          <input className="input" type="password" autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} required />
-        </label>
-        {err && <p className="warn small">{err}</p>}
-        <button type="submit" className="btn primary block big" disabled={busy}>
-          {busy ? '로그인 중…' : '시작하기'}
-        </button>
-        <p className="hint">계정은 선생님이 만들어 드려요. 한 번 로그인하면 계속 유지돼요.</p>
-      </form>
-      <button type="button" className="link small login-skip" onClick={() => setSettings({ skipLogin: true })}>
-        로그인 없이 이 휴대폰에서만 쓰기
-      </button>
-      <p className="hint center">나중에 설정에서 로그인하면 기록이 합쳐져요.</p>
-    </div>
+    <Screen>
+      <VStack gap={8} paddingBlock={8} hAlign="stretch">
+        <VStack gap={3} hAlign="center">
+          <LogoMark size={72} />
+          <Heading level={1} type="display-2" xstyle={t.en}>
+            M-TOEIC
+          </Heading>
+          <Text type="large" color="secondary">
+            수업 끝나고 펴 보는 토익 노트
+          </Text>
+        </VStack>
+        <Card padding={5}>
+          <form onSubmit={submit}>
+            <FormLayout>
+              <TextInput label="이메일" type="email" autoComplete="username" value={email} onChange={setEmail} isRequired />
+              <TextInput label="비밀번호" type="password" autoComplete="current-password" value={pw} onChange={setPw} isRequired />
+              {err && <Banner status="error" title={err} />}
+              <Button label={busy ? '로그인 중…' : '시작하기'} type="submit" variant="primary" size="lg" width="100%" isLoading={busy} />
+              <Text type="supporting">계정은 선생님이 만들어 드려요. 한 번 로그인하면 계속 유지돼요.</Text>
+            </FormLayout>
+          </form>
+        </Card>
+        <VStack gap={1} hAlign="center">
+          <Button label="로그인 없이 이 휴대폰에서만 쓰기" variant="ghost" onClick={() => setSettings({ skipLogin: true })} />
+          <Text type="supporting" justify="center">
+            나중에 설정에서 로그인하면 기록이 합쳐져요.
+          </Text>
+        </VStack>
+      </VStack>
+    </Screen>
   )
 }

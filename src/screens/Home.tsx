@@ -1,14 +1,27 @@
-import { useMemo } from 'react'
-import { ArrowRight, Check, Star } from 'lucide-react'
+import { useMemo, type ReactNode } from 'react'
+import { Check, ChevronRight, Circle, CircleCheck } from 'lucide-react'
+import { VStack } from '@astryxdesign/core/VStack'
+import { HStack } from '@astryxdesign/core/HStack'
+import { Center } from '@astryxdesign/core/Center'
+import { Heading, Text } from '@astryxdesign/core/Text'
+import { List, ListItem } from '@astryxdesign/core/List'
+import { Icon } from '@astryxdesign/core/Icon'
+import { Token } from '@astryxdesign/core/Token'
+import { Blockquote } from '@astryxdesign/core/Blockquote'
+import { ProgressBar } from '@astryxdesign/core/ProgressBar'
+import { Card } from '@astryxdesign/core/Card'
 import { TOTAL_TARGET } from '../lib/wordtest.ts'
 import { useChapters, type ShownChapter } from '../lib/content.ts'
 import { lessonKey, useStore, type Progress } from '../lib/store.ts'
 import { addDays, formatDate, streak, today } from '../lib/date.ts'
 import { href } from '../lib/router.ts'
-import { lessonWords } from '../lib/words.ts'
+import { lessonWords, useDueCount } from '../lib/words.ts'
 import { stars } from '../lib/game.ts'
-import { stageList } from './Lesson.tsx'
+import { MiniStars } from '../components/MiniStars.tsx'
+import { stageList } from '../lib/stages.ts'
 import { LogoMark } from '../components/Logo.tsx'
+import { Screen } from '../components/Screen.tsx'
+import { layout, type as t } from '../ui/styles.ts'
 
 const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토']
 
@@ -27,177 +40,189 @@ function nextUp(progress: Progress, chapters: ShownChapter[]) {
   return null
 }
 
+/** 동그란 번호·도장 */
+export function Dot({ children, done, next, today: isToday, empty }: { children: ReactNode; done?: boolean; next?: boolean; today?: boolean; empty?: boolean }) {
+  return (
+    <Center xstyle={[layout.dot, empty && layout.dotEmpty, isToday && layout.dotToday, next && layout.dotNext, done && layout.dotDone]}>
+      {children}
+    </Center>
+  )
+}
+
 /** 최근 7일: 공부한 날에 도장 */
 function Week({ days }: { days: Record<string, number> }) {
-  const t = today()
-  const list = Array.from({ length: 7 }, (_, i) => addDays(t, i - 6))
+  const tday = today()
+  const list = Array.from({ length: 7 }, (_, i) => addDays(tday, i - 6))
   return (
-    <div className="week" aria-label="최근 7일 공부 기록">
+    <HStack hAlign="between" aria-label="최근 7일 공부 기록">
       {list.map((d) => {
         const [y, m, dd] = d.split('-').map(Number)
         const wd = new Date(y, m - 1, dd).getDay()
         return (
-          <span key={d} className={`day ${days[d] ? 'on' : ''} ${d === t ? 'today' : ''}`}>
-            <span className="day-w">{WEEKDAY[wd]}</span>
-            <span className="day-dot">{days[d] ? <Check size={14} strokeWidth={3.2} /> : dd}</span>
-          </span>
+          <VStack key={d} gap={1} hAlign="center">
+            <Text type="supporting" size="2xs">
+              {WEEKDAY[wd]}
+            </Text>
+            <Dot done={!!days[d]} today={d === tday} empty={!days[d]}>
+              {days[d] ? (
+                <Icon icon={Check} size="sm" />
+              ) : (
+                <Text type="label" size="xsm" hasTabularNumbers color="inherit">
+                  {dd}
+                </Text>
+              )}
+            </Dot>
+          </VStack>
         )
       })}
-    </div>
+    </HStack>
   )
 }
 
-export function Home({ due }: { due: number }) {
+function Todo({ done, href: to, label, sub }: { done: boolean; href?: string; label: ReactNode; sub: string }) {
+  return (
+    <ListItem
+      href={to}
+      startContent={<Icon icon={done ? CircleCheck : Circle} color={done ? 'success' : 'secondary'} />}
+      label={
+        <Text type="body" weight="medium" color={done ? 'secondary' : 'primary'} hasStrikethrough={done}>
+          {label}
+        </Text>
+      }
+      description={sub}
+      endContent={to && !done ? <Icon icon={ChevronRight} color="secondary" /> : undefined}
+    />
+  )
+}
+
+export function Home() {
   const progress = useStore((s) => s.progress)
+  const due = useDueCount()
   const days = streak(progress.days)
   const studiedToday = !!progress.days[today()]
   const chapters = useChapters()
   const up = useMemo(() => nextUp(progress, chapters), [progress, chapters])
   const tests = useStore((s) => s.tests)
   const testToday = useMemo(
-    () => Object.values(tests).filter((t) => t.day === today()).sort((a, b) => b.finishedAt - a.finishedAt)[0],
+    () => Object.values(tests).filter((x) => x.day === today()).sort((a, b) => b.finishedAt - a.finishedAt)[0],
     [tests],
   )
 
   return (
-    <div className="page home">
-      <header className="home-head">
-        <div className="home-brand">
-          <LogoMark />
-          <div>
-            <p className="eyebrow">
-              {formatDate(today())} {WEEKDAY[new Date().getDay()]}요일
-            </p>
-            <h1 className="wordmark-text">
-              M<span>-</span>TOEIC
-            </h1>
-          </div>
-        </div>
-        <p className="streak-line">
-          {days > 0 ? (
-            <>
-              <b>{days}일</b> 연속 공부 중{studiedToday ? '' : ' · 오늘도 이어 가요'}
-            </>
-          ) : (
-            '오늘 첫 도장을 찍어 봐요'
-          )}
-        </p>
-        <Week days={progress.days} />
-      </header>
+    <Screen nav>
+      <VStack gap={8}>
+        <VStack gap={4}>
+          <HStack gap={3} vAlign="center">
+            <LogoMark />
+            <VStack gap={0}>
+              <Text type="supporting">
+                {formatDate(today())} {WEEKDAY[new Date().getDay()]}요일
+              </Text>
+              <Heading level={1} type="display-3" xstyle={t.en}>
+                M-TOEIC
+              </Heading>
+            </VStack>
+          </HStack>
+          <Text type="large">
+            {days > 0 ? (
+              <>
+                <Text type="inherit" weight="bold">
+                  {days}일
+                </Text>{' '}
+                연속 공부 중{studiedToday ? '' : ' · 오늘도 이어 가요'}
+              </>
+            ) : (
+              '오늘 첫 도장을 찍어 봐요'
+            )}
+          </Text>
+          <Week days={progress.days} />
+        </VStack>
 
-      <section className="todo">
-        <h2 className="todo-title">오늘 할 일</h2>
-        <a className={`todo-item ${testToday ? 'done' : ''}`} href={href('test')}>
-          <span className="todo-box">{testToday && <Check size={16} strokeWidth={3.2} />}</span>
-          <span className="todo-text">
-            <span>
-              {testToday ? (
-                <>
-                  단어 테스트 <b>{testToday.score}/{testToday.total}</b>
-                </>
-              ) : (
-                <>
-                  단어 테스트 <b>{TOTAL_TARGET}문제</b>
-                </>
-              )}
-            </span>
-            <span className="todo-sub">{testToday ? '틀린 단어는 다음 테스트에 다시 나와요' : '오늘 외운 단어 + 이전 단어 복습'}</span>
-          </span>
-          {!testToday && <ArrowRight className="todo-go" size={20} />}
-        </a>
-        <a className={`todo-item ${due ? '' : 'done'}`} href={href('review')}>
-          <span className="todo-box">{!due && <Check size={16} strokeWidth={3.2} />}</span>
-          <span className="todo-text">
-            <span>
-              {due ? (
-                <>
-                  단어 복습 <b>{due}개</b>
-                </>
-              ) : (
-                '단어 복습 끝'
-              )}
-            </span>
-            <span className="todo-sub">{due ? '잊기 직전에 다시 보기' : '내일 또 만나요'}</span>
-          </span>
-          {due > 0 && <ArrowRight className="todo-go" size={20} />}
-        </a>
-        {up ? (
-          <a className="todo-item" href={href('l', up.ch.id, up.l.id, up.stage.id)}>
-            <span className="todo-box" />
-            <span className="todo-text">
-              <span>
-                {up.l.title} · <b>{up.stage.title}</b>
-              </span>
-              <span className="todo-sub">{up.stage.desc}</span>
-            </span>
-            <ArrowRight className="todo-go" size={20} />
-          </a>
-        ) : (
-          <div className="todo-item done">
-            <span className="todo-box">
-              <Check size={16} strokeWidth={3.2} />
-            </span>
-            <span className="todo-text">
-              모든 레슨 완료
-              <span className="todo-sub">다음 수업 뒤에 새 챕터가 생겨요</span>
-            </span>
-          </div>
-        )}
-      </section>
+        <Card>
+          <List edge="outset" hasDividers header={<Heading level={2}>오늘 할 일</Heading>}>
+            <Todo
+              done={!!testToday}
+              href={href('test')}
+              label={testToday ? `단어 테스트 ${testToday.score}/${testToday.total}` : `단어 테스트 ${TOTAL_TARGET}문제`}
+              sub={testToday ? '틀린 단어는 다음 테스트에 다시 나와요' : '오늘 외운 단어 + 이전 단어 복습'}
+            />
+            <Todo done={!due} href={href('review')} label={due ? `단어 복습 ${due}개` : '단어 복습 끝'} sub={due ? '잊기 직전에 다시 보기' : '내일 또 만나요'} />
+            {up ? (
+              <Todo done={false} href={href('l', up.ch.id, up.l.id, up.stage.id)} label={`${up.l.title} · ${up.stage.title}`} sub={up.stage.desc} />
+            ) : (
+              <Todo done label="모든 레슨 완료" sub="다음 수업 뒤에 새 챕터가 생겨요" />
+            )}
+          </List>
+        </Card>
 
-      {chapters.map((ch, ci) => {
-        const done = ch.lessons.filter((l) => progress.lessons[lessonKey(ch.id, l.id)]?.quizTotal).length
-        return (
-          <section key={ch.id} className="chapter">
-            <div className="chapter-head">
-              <p className="chapter-date">
-                {formatDate(ch.date)} {ch.personal && !ch.modified ? '맞춤' : '수업'}
-                {ci === 0 && <span className="new-tag">NEW</span>}
-                {ch.personal && <span className="mine-tag">{ch.modified ? '맞춤 수정' : '나만의 챕터'}</span>}
-              </p>
-              <h2>{ch.title}</h2>
-              {ch.subtitle && <p className="sub">{ch.subtitle}</p>}
-              <p className="reason">
-                <span>{ch.personal && !ch.modified ? '내 메모에서' : '선생님 메모'}</span> {ch.reason}
-              </p>
-              <p className="chapter-count">
-                레슨 {done}/{ch.lessons.length} 완료
-              </p>
-            </div>
-            <ol className="lesson-list">
-              {ch.lessons.map((l, i) => {
-                const st = lessonStages(progress, ch.id, l)
-                const lp = progress.lessons[lessonKey(ch.id, l.id)]
-                const all = st.every((s) => s.done)
-                const isUp = up?.l === l
-                return (
-                  <li key={l.id}>
-                    <a className={`lesson-row ${all ? 'all' : ''} ${isUp ? 'up' : ''}`} href={href('l', ch.id, l.id)}>
-                      <span className="lesson-num">{all ? <Check size={18} strokeWidth={3} /> : i + 1}</span>
-                      <span className="lesson-text">
-                        <b>{l.title}</b>
-                        <span>{l.summary}</span>
-                        <span className="pips" aria-label={`${st.filter((s) => s.done).length}/${st.length} 단계`}>
-                          {st.map((s) => (
-                            <i key={s.id} className={s.done ? 'on' : ''} />
-                          ))}
-                        </span>
-                      </span>
-                      {lp?.quizTotal ? (
-                        <span className="mini-stars">
-                          {[0, 1, 2].map((k) => (
-                            <Star key={k} size={13} className={k < stars(lp.quizBest ?? 0, lp.quizTotal!) ? 'on' : ''} />
-                          ))}
-                        </span>
-                      ) : null}
-                    </a>
-                  </li>
-                )
-              })}
-            </ol>
-          </section>
-        )
-      })}
-    </div>
+        {chapters.map((ch, ci) => {
+          const done = ch.lessons.filter((l) => progress.lessons[lessonKey(ch.id, l.id)]?.quizTotal).length
+          return (
+            <VStack key={ch.id} gap={4} as="section">
+              <VStack gap={2}>
+                <HStack gap={2} vAlign="center" wrap="wrap">
+                  <Text type="supporting">
+                    {formatDate(ch.date)} {ch.personal && !ch.modified ? '맞춤' : '수업'}
+                  </Text>
+                  {ci === 0 && <Token size="sm" color="red" label="NEW" />}
+                  {ch.personal && <Token size="sm" color="purple" label={ch.modified ? '맞춤 수정' : '나만의 챕터'} />}
+                </HStack>
+                <Heading level={2} xstyle={t.keepAll}>
+                  {ch.title}
+                </Heading>
+                {ch.subtitle && <Text type="supporting">{ch.subtitle}</Text>}
+              </VStack>
+              <Blockquote cite={ch.personal && !ch.modified ? '내 메모에서' : '선생님 메모'}>
+                <Text type="body" xstyle={t.keepAll}>
+                  {ch.reason}
+                </Text>
+              </Blockquote>
+              <List edge="outset"
+                hasDividers
+                header={
+                  <Text type="label" color="secondary">
+                    레슨 {done}/{ch.lessons.length} 완료
+                  </Text>
+                }
+              >
+                {ch.lessons.map((l, i) => {
+                  const st = lessonStages(progress, ch.id, l)
+                  const lp = progress.lessons[lessonKey(ch.id, l.id)]
+                  const all = st.every((s) => s.done)
+                  const n = st.filter((s) => s.done).length
+                  return (
+                    <ListItem
+                      key={l.id}
+                      href={href('l', ch.id, l.id)}
+                      isSelected={up?.l === l}
+                      align="first-line"
+                      startContent={
+                        <Dot done={all} next={up?.l === l}>
+                          {all ? <Icon icon={Check} size="sm" /> : i + 1}
+                        </Dot>
+                      }
+                      label={
+                        <Text type="body" weight="semibold" xstyle={t.keepAll}>
+                          {l.title}
+                        </Text>
+                      }
+                      description={
+                        <VStack gap={2}>
+                          <Text type="supporting" maxLines={1}>
+                            {l.summary}
+                          </Text>
+                          <ProgressBar label={`${n}/${st.length} 단계`} isLabelHidden value={n} max={st.length} variant={all ? 'success' : 'accent'} />
+                        </VStack>
+                      }
+                      endContent={lp?.quizTotal ? <MiniStars n={stars(lp.quizBest ?? 0, lp.quizTotal)} /> : undefined}
+                    />
+                  )
+                })}
+              </List>
+            </VStack>
+          )
+        })}
+      </VStack>
+    </Screen>
   )
 }

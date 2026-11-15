@@ -10,7 +10,7 @@ A private TOEIC study PWA for one student. Every **chapter** is built from a cla
 The word list and the colour-coded sentence notes stay available as reference pages. Daily review and deck practice use the same word game.
 The student can also add their own words, which go into spaced-repetition review alongside the lesson words.
 
-- React 19 + Vite 8 + TypeScript. Routing is by URL hash, so the phone's back button works.
+- React 19 + Vite 8 + TypeScript, UI built with [Astryx](https://astryx.atmeta.com) (Meta's design system) and a custom `notebook` theme. Routing is by URL hash, so the phone's back button works.
 - **Runtime AI cost: $0.** All content is written ahead of time into `src/content/`, and pronunciation uses the phone's built-in voice.
 - Saving is local first (localStorage). If Supabase is configured, the app signs in and syncs progress and the student's own words across devices.
 - Works offline once loaded (`public/sw.js`), and can be added to the phone's home screen.
@@ -108,6 +108,15 @@ Every later `git push` redeploys automatically. If a content error slips in, `np
 
 See [CONTENT_GUIDE.md](CONTENT_GUIDE.md). In short: tell Claude what the student was weak on, it writes `src/content/chapters/YYYY-MM-DD/`, you run `npm run build`, then push.
 
+## UI (Astryx)
+
+Every screen is built from Astryx components (`@astryxdesign/core`); there is no hand-written stylesheet.
+
+- **Frame**: `src/App.tsx` wraps the app in `InternationalizationProvider` (Korean), `Theme` and `AppShell`. Each screen renders `Screen` (`src/components/Screen.tsx`): a `Layout` with a pinned header (`AppBar` or the game `RunHead`), a scrolling body, and a pinned footer (the bottom tabs or the screen's main button).
+- **Theme**: `themes/notebook/` (paper background, highlighter-yellow accent, Pretendard). Change it with the theme editor, not by hand: `npx astryx experimental theme editor set notebook <thing> <value>`, then look at it with `... editor show notebook --png`. Every change rebuilds the app copy in `src/themes/notebook/`.
+- **Own styles**: only in `src/ui/styles.ts` (`stylex.create`, tokens only: `var(--color-*)`, `var(--spacing-*)`). They cover what no component prop does: sentence-tag colours, answer states, small animations. Our StyleX classes use the `mt` prefix so they never collide with Astryx's prebuilt classes (`vite.config.ts`).
+- **Docs**: `npx astryx search "<what you need>"`, `npx astryx component <Name>`, `npx astryx docs <topic>`. The rules for agents are in `CLAUDE.md`.
+
 ## Layout
 
 ```
@@ -120,5 +129,8 @@ src/lib/sync.ts               Supabase sync (pull → per-item newest-wins merge
 src/lib/srs.ts                Leitner-box spaced repetition (1, 3, 7, 14, 30, 60 days)
 src/lib/wordtest.ts           which words go into the daily word test
 src/screens/                  Home, Lesson, Cards, Review, WordTest, Words, WordForm, BulkAdd, Settings, Login
+src/components/Screen.tsx     screen frame (header · scrolling body · footer), app bar, game header, bottom tabs
+src/ui/styles.ts              the app's own StyleX styles (Astryx tokens only)
+themes/notebook/              Astryx theme source (edit with the theme editor); src/themes/ is its generated app copy
 supabase/schema.sql           tables + row-level security
 ```

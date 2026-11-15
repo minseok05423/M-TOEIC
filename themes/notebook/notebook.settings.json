@@ -1,0 +1,73 @@
+{
+  "name": "notebook",
+  "like": "butter",
+  "mode": "both",
+  "settings": [
+    {
+      "thing": "font",
+      "value": "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif",
+      "source": "dial"
+    },
+    {
+      "thing": "accent",
+      "value": "#ffd23f",
+      "source": "dial"
+    },
+    {
+      "thing": "neutral",
+      "value": "#8a8270",
+      "source": "dial"
+    },
+    {
+      "thing": "success",
+      "value": "#2c7a4b",
+      "source": "dial"
+    },
+    {
+      "thing": "danger",
+      "value": "#d4422b",
+      "source": "dial"
+    },
+    {
+      "thing": "info",
+      "value": "#2c55c8",
+      "source": "dial"
+    },
+    {
+      "thing": "--color-background-body",
+      "value": "#f4efe4",
+      "source": "token",
+      "mode": "light"
+    },
+    {
+      "thing": "--color-background-body",
+      "value": "#181713",
+      "source": "token",
+      "mode": "dark"
+    },
+    {
+      "thing": "corners",
+      "value": "large",
+      "source": "dial"
+    },
+    {
+      "thing": "headings",
+      "value": "bold",
+      "source": "dial",
+      "axis": "weight"
+    },
+    {
+      "thing": "warning",
+      "value": "#b85d0f",
+      "source": "dial"
+    },
+    {
+      "thing": "border",
+      "value": "var(--border-width) solid var(--color-border-emphasized)",
+      "source": "property",
+      "on": "switch"
+    }
+  ],
+  "lifted": [],
+  "palette": "d5547f2d53519c624fcc7b1a7088115ffb9ff00229a0a2e7091e7695d643be62"
+}

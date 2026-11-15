@@ -1,5 +1,17 @@
-import { useRef, useState } from 'react'
-import { Cloud, Download, HardDrive, Info, LogIn, LogOut, Music, RefreshCw, RotateCcw, Smartphone, TriangleAlert, Upload, Volume2 } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
+import { Cloud, Download, HardDrive, Info, LogIn, LogOut, RefreshCw, RotateCcw, Smartphone, TriangleAlert } from 'lucide-react'
+import type { Session } from '@supabase/supabase-js'
+import { VStack } from '@astryxdesign/core/VStack'
+import { HStack } from '@astryxdesign/core/HStack'
+import { Heading, Text } from '@astryxdesign/core/Text'
+import { List, ListItem } from '@astryxdesign/core/List'
+import { Icon } from '@astryxdesign/core/Icon'
+import { Switch } from '@astryxdesign/core/Switch'
+import { StatusDot } from '@astryxdesign/core/StatusDot'
+import { Banner } from '@astryxdesign/core/Banner'
+import { FileInput } from '@astryxdesign/core/FileInput'
+import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl'
+import { useImperativeAlertDialog } from '@astryxdesign/core/AlertDialog'
 import { getState, resetProgress, setSettings, setState, useStore, type State } from '../lib/store.ts'
 import { mergeProgress, mergeWords } from '../lib/merge.ts'
 import { supabase } from '../lib/supabase.ts'
@@ -7,14 +19,32 @@ import { syncNow, useSyncStatus } from '../lib/sync.ts'
 import { speak, ttsSupported } from '../lib/tts.ts'
 import { useChapters } from '../lib/content.ts'
 import { today } from '../lib/date.ts'
-import { TopBar } from '../components/TopBar.tsx'
-import type { Session } from '@supabase/supabase-js'
+import { PageTitle, Screen } from '../components/Screen.tsx'
+
+/** 설정 한 묶음: 제목 + 줄들 + 아래 설명 */
+function Group({ title, foot, children }: { title: string; foot?: string; children: ReactNode }) {
+  return (
+    <VStack gap={2} as="section">
+      <Heading level={3} color="secondary">
+        {title}
+      </Heading>
+      {children}
+      {foot && <Text type="supporting">{foot}</Text>}
+    </VStack>
+  )
+}
+
+const RATES = [
+  { r: 0.7, l: '느리게' },
+  { r: 0.9, l: '보통' },
+  { r: 1.05, l: '빠르게' },
+]
 
 export function Settings({ session }: { session: Session | null }) {
   const settings = useStore((s) => s.settings)
   const sync = useSyncStatus()
-  const fileRef = useRef<HTMLInputElement>(null)
-  const [msg, setMsg] = useState('')
+  const confirm = useImperativeAlertDialog()
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
   function exportData() {
     const s = getState()
@@ -37,9 +67,9 @@ export function Settings({ session }: { session: Session | null }) {
         progress: mergeProgress(s.progress, data.progress),
         words: mergeWords(s.words, data.words ?? {}),
       }))
-      setMsg('백업을 합쳤어요')
+      setMsg({ ok: true, text: '백업을 합쳤어요' })
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : '불러오기 실패')
+      setMsg({ ok: false, text: e instanceof Error ? e.message : '불러오기 실패' })
     }
   }
 
@@ -49,233 +79,169 @@ export function Settings({ session }: { session: Session | null }) {
     sync.state === 'syncing'
       ? '저장 중…'
       : sync.state === 'error'
-        ? sync.error
+        ? (sync.error ?? '저장 실패')
         : sync.lastSync
           ? `마지막 저장 ${new Date(sync.lastSync).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`
           : '자동 저장 켜짐'
 
   return (
-    <div className="page">
-      <TopBar title="설정" />
+    <Screen nav>
+      <VStack gap={8}>
+        <PageTitle>설정</PageTitle>
 
-      <section className="group">
-        <p className="section-label">저장</p>
-        <div className="group-card">
-          {!supabase || !session ? (
-            <>
-              <div className="row">
-                <span className="row-ico gray">
-                  <HardDrive size={18} />
-                </span>
-                <span className="row-text">
-                  이 기기에만 저장 중
-                  <span className="sub">브라우저 데이터를 지우면 사라지니 가끔 백업하세요</span>
-                </span>
-              </div>
-              {supabase && (
-                <button type="button" className="row" onClick={() => setSettings({ skipLogin: false })}>
-                  <span className="row-ico">
-                    <LogIn size={18} />
-                  </span>
-                  <span className="row-text">
-                    로그인하고 서버에 저장
-                    <span className="sub">지금까지 기록은 그대로 합쳐져요</span>
-                  </span>
-                </button>
-              )}
-            </>
-          ) : (
-            <>
-              <div className="row">
-                <span className="row-ico">
-                  <Cloud size={18} />
-                </span>
-                <span className="row-text">
-                  {session.user.email}
-                  <span className="sub">
-                    <span className={`status-dot ${sync.state}`} />
-                    {syncText}
-                  </span>
-                </span>
-              </div>
-              {sync.kind === 'setup' && (
-                <div className="row setup-warn">
-                  <span className="row-ico red">
-                    <TriangleAlert size={18} />
-                  </span>
-                  <span className="row-text small">
-                    지금은 이 휴대폰에만 저장되고 있어요. 공부 기록은 안전해요 — 서버 준비가 끝나면 자동으로 올라가요.
-                  </span>
-                </div>
-              )}
-              <button type="button" className="row" onClick={() => void syncNow()} disabled={sync.state === 'syncing'}>
-                <span className="row-ico green">
-                  <RefreshCw size={18} />
-                </span>
-                <span className="row-text">지금 저장</span>
-              </button>
-              <button
-                type="button"
-                className="row"
-                onClick={async () => {
-                  await syncNow()
-                  if (confirm('로그아웃할까요?')) {
-                    await supabase!.auth.signOut()
-                    setSettings({ skipLogin: false })
+        <Group title="저장">
+          <List edge="outset" hasDividers>
+            {!supabase || !session ? (
+              <>
+                <ListItem startContent={<Icon icon={HardDrive} />} label="이 기기에만 저장 중" description="브라우저 데이터를 지우면 사라지니 가끔 백업하세요" />
+                {supabase && (
+                  <ListItem
+                    onClick={() => setSettings({ skipLogin: false })}
+                    startContent={<Icon icon={LogIn} color="accent" />}
+                    label="로그인하고 서버에 저장"
+                    description="지금까지 기록은 그대로 합쳐져요"
+                  />
+                )}
+              </>
+            ) : (
+              <>
+                <ListItem
+                  startContent={<Icon icon={Cloud} />}
+                  label={session.user.email ?? '로그인됨'}
+                  description={
+                    <HStack gap={1} vAlign="center">
+                      <StatusDot
+                        variant={sync.state === 'error' ? 'error' : sync.state === 'syncing' ? 'accent' : 'success'}
+                        label={syncText}
+                        isPulsing={sync.state === 'syncing'}
+                      />
+                      <Text type="supporting">{syncText}</Text>
+                    </HStack>
                   }
-                }}
-              >
-                <span className="row-ico gray">
-                  <LogOut size={18} />
-                </span>
-                <span className="row-text">로그아웃</span>
-              </button>
-            </>
+                />
+                <ListItem
+                  onClick={() => void syncNow()}
+                  isDisabled={sync.state === 'syncing'}
+                  startContent={<Icon icon={RefreshCw} color="success" />}
+                  label="지금 저장"
+                />
+                <ListItem
+                  onClick={() =>
+                    confirm.show({
+                      title: '로그아웃할까요?',
+                      description: '이 휴대폰의 기록은 서버에 저장한 뒤 로그아웃해요.',
+                      actionLabel: '로그아웃',
+                      onAction: async () => {
+                        await syncNow()
+                        await supabase!.auth.signOut()
+                        setSettings({ skipLogin: false })
+                        confirm.hide()
+                      },
+                    })
+                  }
+                  startContent={<Icon icon={LogOut} />}
+                  label="로그아웃"
+                />
+              </>
+            )}
+          </List>
+          {sync.kind === 'setup' && (
+            <Banner
+              status="warning"
+              icon={<Icon icon={TriangleAlert} />}
+              title="지금은 이 휴대폰에만 저장되고 있어요"
+              description="공부 기록은 안전해요. 서버 준비가 끝나면 자동으로 올라가요."
+            />
           )}
-        </div>
-      </section>
+        </Group>
 
-      {ttsSupported && (
-        <section className="group">
-          <p className="section-label">발음</p>
-          <div className="group-card">
-            <div className="row-block">
-              <span className="row-text">
-                <span className="row-value">말하기 속도</span>
-              </span>
-              <div className="seg">
-                {[
-                  { r: 0.7, l: '느리게' },
-                  { r: 0.9, l: '보통' },
-                  { r: 1.05, l: '빠르게' },
-                ].map((o) => (
-                  <button
-                    key={o.r}
-                    type="button"
-                    className={settings.rate === o.r ? 'on' : ''}
-                    onClick={() => {
-                      setSettings({ rate: o.r })
-                      speak('The meeting has been postponed until Friday.', o.r)
-                    }}
-                  >
-                    {o.l}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <label className="row">
-              <span className="row-ico orange">
-                <Volume2 size={18} />
-              </span>
-              <span className="row-text">새 단어 나오면 자동 발음</span>
-              <input
-                type="checkbox"
-                className="switch"
-                checked={settings.autoSpeak}
-                onChange={(e) => setSettings({ autoSpeak: e.target.checked })}
-              />
-            </label>
-          </div>
-          <p className="group-foot">소리가 안 나면 휴대폰 무음 모드를 꺼 보세요.</p>
-        </section>
-      )}
+        {ttsSupported && (
+          <Group title="발음" foot="소리가 안 나면 휴대폰 무음 모드를 꺼 보세요.">
+            <SegmentedControl
+              label="말하기 속도"
+              layout="fill"
+              value={String(settings.rate)}
+              onChange={(v) => {
+                const r = Number(v)
+                setSettings({ rate: r })
+                speak('The meeting has been postponed until Friday.', r)
+              }}
+            >
+              {RATES.map((o) => (
+                <SegmentedControlItem key={o.r} value={String(o.r)} label={o.l} />
+              ))}
+            </SegmentedControl>
+            <Switch label="새 단어 나오면 자동 발음" labelPosition="start" labelSpacing="spread" value={settings.autoSpeak} onChange={(v) => setSettings({ autoSpeak: v })} />
+          </Group>
+        )}
 
-      <section className="group">
-        <p className="section-label">게임</p>
-        <div className="group-card">
-          <label className="row">
-            <span className="row-ico orange">
-              <Music size={18} />
-            </span>
-            <span className="row-text">
-              정답 · 오답 효과음
-              <span className="sub">짧은 "띵" 소리와 진동</span>
-            </span>
-            <input type="checkbox" className="switch" checked={settings.sfx} onChange={(e) => setSettings({ sfx: e.target.checked })} />
-          </label>
-        </div>
-      </section>
+        <Group title="게임">
+          <Switch
+            label="정답 · 오답 효과음"
+            description='짧은 "띵" 소리와 진동'
+            labelPosition="start" labelSpacing="spread"
+            value={settings.sfx}
+            onChange={(v) => setSettings({ sfx: v })}
+          />
+        </Group>
 
-      <section className="group">
-        <p className="section-label">백업</p>
-        <div className="group-card">
-          <button type="button" className="row" onClick={exportData}>
-            <span className="row-ico purple">
-              <Download size={18} />
-            </span>
-            <span className="row-text">파일로 내보내기</span>
-          </button>
-          <button type="button" className="row" onClick={() => fileRef.current?.click()}>
-            <span className="row-ico purple">
-              <Upload size={18} />
-            </span>
-            <span className="row-text">
-              파일에서 불러오기
-              {msg && <span className="sub">{msg}</span>}
-            </span>
-          </button>
-        </div>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="application/json,.json"
-          hidden
-          onChange={(e) => {
-            const f = e.target.files?.[0]
-            if (f) void importData(f)
-            e.target.value = ''
-          }}
-        />
-        <p className="group-foot">학습 기록과 내 단어를 파일로 저장하거나 불러와요. 불러오면 지금 기록과 합쳐져요.</p>
-      </section>
-
-      <section className="group">
-        <p className="section-label">홈 화면에 추가</p>
-        <div className="group-card">
-          <div className="row">
-            <span className="row-ico gray">
-              <Smartphone size={18} />
-            </span>
-            <span className="row-text small">
-              <span>
-                <b>아이폰</b> Safari 아래 공유 버튼 → 홈 화면에 추가
-              </span>
-              <span>
-                <b>안드로이드</b> Chrome ⋮ → 홈 화면에 추가 / 앱 설치
-              </span>
-            </span>
-          </div>
-        </div>
-      </section>
-
-      <section className="group">
-        <p className="section-label">정보</p>
-        <div className="group-card">
-          <div className="row">
-            <span className="row-ico gray">
-              <Info size={18} />
-            </span>
-            <span className="row-text">
-              콘텐츠
-              <span className="sub">
-                챕터 {chapters.length}개 · 레슨 {lessons}개 · 최근 {chapters[0]?.date}
-              </span>
-            </span>
-          </div>
-          <button
-            type="button"
-            className="row danger"
-            onClick={() => {
-              if (confirm('퀴즈 점수와 단어 복습 기록을 모두 지울까요? (내 단어는 남아요)') && confirm('정말요? 되돌릴 수 없어요.')) resetProgress()
+        <Group title="백업" foot="학습 기록과 내 단어를 파일로 저장하거나 불러와요. 불러오면 지금 기록과 합쳐져요.">
+          <List edge="outset" hasDividers>
+            <ListItem onClick={exportData} startContent={<Icon icon={Download} color="purple" />} label="파일로 내보내기" />
+          </List>
+          <FileInput
+            label="파일에서 불러오기"
+            accept="application/json,.json"
+            value={null}
+            onChange={(f) => {
+              const file = Array.isArray(f) ? f[0] : f
+              if (file) void importData(file)
             }}
-          >
-            <span className="row-ico red">
-              <RotateCcw size={18} />
-            </span>
-            <span className="row-text">학습 기록 초기화</span>
-          </button>
-        </div>
-      </section>
-    </div>
+            status={msg ? { type: msg.ok ? 'success' : 'error', message: msg.text } : undefined}
+          />
+        </Group>
+
+        <Group title="홈 화면에 추가">
+          <List edge="outset" hasDividers>
+            <ListItem
+              startContent={<Icon icon={Smartphone} />}
+              label="아이폰"
+              description="Safari 아래 공유 버튼 → 홈 화면에 추가"
+            />
+            <ListItem startContent={<Icon icon={Smartphone} />} label="안드로이드" description="Chrome ⋮ → 홈 화면에 추가 / 앱 설치" />
+          </List>
+        </Group>
+
+        <Group title="정보">
+          <List edge="outset" hasDividers>
+            <ListItem
+              startContent={<Icon icon={Info} />}
+              label="콘텐츠"
+              description={`챕터 ${chapters.length}개 · 레슨 ${lessons}개 · 최근 ${chapters[0]?.date ?? '-'}`}
+            />
+            <ListItem
+              onClick={() =>
+                confirm.show({
+                  title: '학습 기록을 모두 지울까요?',
+                  description: '퀴즈 점수와 단어 복습 기록이 지워져요. 내 단어는 남아요. 되돌릴 수 없어요.',
+                  actionLabel: '모두 지우기',
+                  onAction: () => {
+                    resetProgress()
+                    confirm.hide()
+                  },
+                })
+              }
+              startContent={<Icon icon={RotateCcw} color="error" />}
+              label={
+                <Text type="body">
+                  학습 기록 초기화
+                </Text>
+              }
+            />
+          </List>
+        </Group>
+      </VStack>
+      {confirm.element}
+    </Screen>
   )
 }

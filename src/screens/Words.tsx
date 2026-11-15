@@ -1,10 +1,20 @@
 import { useMemo, useState } from 'react'
 import { BookPlus, ClipboardPaste, Layers, Plus, Search } from 'lucide-react'
+import { VStack } from '@astryxdesign/core/VStack'
+import { HStack } from '@astryxdesign/core/HStack'
+import { StackItem } from '@astryxdesign/core/Stack'
+import { Heading, Text } from '@astryxdesign/core/Text'
+import { Button } from '@astryxdesign/core/Button'
+import { Icon } from '@astryxdesign/core/Icon'
+import { TextInput } from '@astryxdesign/core/TextInput'
+import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl'
+import { List } from '@astryxdesign/core/List'
+import { EmptyState } from '@astryxdesign/core/EmptyState'
 import { setImportant, useStore } from '../lib/store.ts'
 import { customWords, lessonWordList, type StudyWord } from '../lib/words.ts'
 import { boxLabel } from '../lib/srs.ts'
 import { go, href, replace } from '../lib/router.ts'
-import { TopBar } from '../components/TopBar.tsx'
+import { PageTitle, Screen } from '../components/Screen.tsx'
 import { HideKoSwitch, WordRow } from '../components/WordRow.tsx'
 
 function groupBy(ws: StudyWord[], key: (w: StudyWord) => string): [string, StudyWord[]][] {
@@ -34,75 +44,61 @@ export function Words({ view }: { view: 'mine' | 'lesson' }) {
   )
 
   return (
-    <div className="page">
-      <TopBar title="단어장" />
-      <div className="seg">
-        <button type="button" className={view === 'mine' ? 'on' : ''} onClick={() => replace('words')}>
-          내 단어 {mine.length}
-        </button>
-        <button type="button" className={view === 'lesson' ? 'on' : ''} onClick={() => replace('words', 'lesson')}>
-          수업 단어 {lessonList.length}
-        </button>
-      </div>
+    <Screen nav>
+      <VStack gap={5}>
+        <PageTitle>단어장</PageTitle>
+        <SegmentedControl label="단어 종류" value={view} onChange={(v) => (v === 'lesson' ? replace('words', 'lesson') : replace('words'))} layout="fill">
+          <SegmentedControlItem value="mine" label={`내 단어 ${mine.length}`} />
+          <SegmentedControlItem value="lesson" label={`수업 단어 ${lessonList.length}`} />
+        </SegmentedControl>
 
-      {view === 'mine' && (
-        <div className="row-gap">
-          <a className="btn primary grow" href={href('words', 'new')}>
-            <Plus size={19} strokeWidth={2.4} /> 단어 추가
-          </a>
-          <a className="btn tonal grow" href={href('words', 'bulk')}>
-            <ClipboardPaste size={18} /> 여러 개 붙여넣기
-          </a>
-        </div>
-      )}
+        {view === 'mine' && (
+          <HStack gap={2}>
+            <StackItem size="fill">
+              <Button label="단어 추가" variant="primary" width="100%" icon={<Icon icon={Plus} />} href={href('words', 'new')} />
+            </StackItem>
+            <StackItem size="fill">
+              <Button label="여러 개 붙여넣기" variant="secondary" width="100%" icon={<Icon icon={ClipboardPaste} />} href={href('words', 'bulk')} />
+            </StackItem>
+          </HStack>
+        )}
 
-      {list.length > 0 && (
-        <>
-          <div className="search">
-            <Search size={18} />
-            <input className="input" type="search" placeholder="영어나 뜻으로 찾기" value={q} onChange={(e) => setQ(e.target.value)} />
-          </div>
-          <div className="row-between" style={{ padding: '0 4px', marginTop: -4 }}>
-            <span className="small muted">{filtered.length}개</span>
-            <HideKoSwitch value={hideKo} onChange={setHideKo} />
-          </div>
-        </>
-      )}
+        {list.length > 0 && (
+          <VStack gap={2}>
+            <TextInput label="찾기" isLabelHidden type="search" startIcon={Search} placeholder="영어나 뜻으로 찾기" value={q} onChange={setQ} hasClear />
+            <HStack hAlign="between" vAlign="center">
+              <Text type="supporting">{filtered.length}개</Text>
+              <HideKoSwitch value={hideKo} onChange={setHideKo} />
+            </HStack>
+          </VStack>
+        )}
 
-      {view === 'mine' && mine.length === 0 && (
-        <div className="card empty-card">
-          <div className="badge-ico">
-            <BookPlus size={30} strokeWidth={2} />
-          </div>
-          <p>
-            <b>책이나 수업에서 모르는 단어</b>를 여기에 추가하세요.
-          </p>
-          <p className="muted small">
-            추가한 단어는 자동으로 복습 목록에 들어가요. 단어책 목록은 "여러 개 붙여넣기"로 한 번에 넣을 수 있어요.
-          </p>
-        </div>
-      )}
+        {view === 'mine' && mine.length === 0 && (
+          <EmptyState
+            icon={<Icon icon={BookPlus} size="lg" />}
+            title="책이나 수업에서 모르는 단어를 추가하세요"
+            description='추가한 단어는 자동으로 복습 목록에 들어가요. 단어책 목록은 "여러 개 붙여넣기"로 한 번에 넣을 수 있어요.'
+          />
+        )}
 
-      {q && filtered.length === 0 && <p className="empty">"{q}" 검색 결과가 없어요.</p>}
+        {q && filtered.length === 0 && <EmptyState isCompact title={`"${q}" 검색 결과가 없어요`} />}
 
-      {groups.map(([g, ws]) => (
-        <section key={g} className="card word-card">
-          <div className="row-between">
-            <h3 className="group-title">
-              {g} · {ws.length}
-            </h3>
-            {view === 'mine' && !q && (
-              <a className="btn small tonal" href={href('words', 'cards', g)}>
-                <Layers size={14} /> 외우기
-              </a>
-            )}
-            {view === 'lesson' && ws[0]?.chapterId && (
-              <a className="btn small tonal" href={href('l', ws[0].chapterId, ws[0].lessonId!, 'words')}>
-                <Layers size={14} /> 외우기
-              </a>
-            )}
-          </div>
-          <ul className="word-list">
+        {groups.map(([g, ws]) => (
+          <List edge="outset"
+            key={g}
+            hasDividers
+            header={
+              <HStack hAlign="between" vAlign="center" gap={2}>
+                <Heading level={3} maxLines={1}>
+                  {g} · {ws.length}
+                </Heading>
+                {view === 'mine' && !q && <Button label="외우기" size="sm" variant="secondary" icon={<Icon icon={Layers} />} href={href('words', 'cards', g)} />}
+                {view === 'lesson' && ws[0]?.chapterId && (
+                  <Button label="외우기" size="sm" variant="secondary" icon={<Icon icon={Layers} />} href={href('l', ws[0].chapterId, ws[0].lessonId!, 'words')} />
+                )}
+              </HStack>
+            }
+          >
             {ws.map((w) => (
               <WordRow
                 key={w.key}
@@ -119,9 +115,9 @@ export function Words({ view }: { view: 'mine' | 'lesson' }) {
                 onStar={w.customId ? () => setImportant(w.customId!, !w.important) : undefined}
               />
             ))}
-          </ul>
-        </section>
-      ))}
-    </div>
+          </List>
+        ))}
+      </VStack>
+    </Screen>
   )
 }

@@ -1,9 +1,10 @@
-import { useEffect } from 'react'
+/**
+ * 화면 본문은 Layout 의 LayoutContent 안에서 스크롤돼요 (위·아래 바는 고정).
+ * window.scrollTo 대신 이걸 쓰세요.
+ */
+export const SCROLL_ROOT = 'screen-scroll'
 
-/** 퀴즈·카드처럼 집중해야 하는 화면에서 아래 탭바를 숨김 */
-export function useImmersive() {
-  useEffect(() => {
-    document.body.classList.add('immersive')
-    return () => document.body.classList.remove('immersive')
-  }, [])
+export function scrollToTop() {
+  document.getElementById(SCROLL_ROOT)?.scrollTo(0, 0)
+  window.scrollTo(0, 0)
 }

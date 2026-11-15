@@ -1,22 +1,25 @@
+/** 태그 색은 테마의 이름 붙은 색(Astryx 토큰 --color-text-blue 등)을 써요. 화면 쪽 스타일은 src/ui/styles.ts */
+export type TagHue = 'blue' | 'red' | 'green' | 'purple' | 'orange' | 'cyan' | 'pink' | 'yellow' | 'teal' | 'gray'
+
 export interface TagInfo {
   label: string
-  color: string
+  hue: TagHue
   /** '뼈대' 에 포함되는지 */
   core: boolean
 }
 
-const BASE: Record<string, { label: string; color: string; core: boolean }> = {
-  s: { label: '주어', color: 'var(--t-s)', core: true },
-  v: { label: '동사', color: 'var(--t-v)', core: true },
-  o: { label: '목적어', color: 'var(--t-o)', core: true },
-  c: { label: '보어', color: 'var(--t-c)', core: true },
-  mod: { label: '조동사', color: 'var(--t-mod)', core: true },
-  prep: { label: '전치사', color: 'var(--t-prep)', core: false },
-  conj: { label: '접속사', color: 'var(--t-conj)', core: false },
-  rel: { label: '관계사', color: 'var(--t-rel)', core: false },
-  n: { label: '명사', color: 'var(--t-n)', core: false },
-  adj: { label: '형용사', color: 'var(--t-adj)', core: false },
-  adv: { label: '부사', color: 'var(--t-adv)', core: false },
+const BASE: Record<string, { label: string; hue: TagHue; core: boolean }> = {
+  s: { label: '주어', hue: 'blue', core: true },
+  v: { label: '동사', hue: 'red', core: true },
+  o: { label: '목적어', hue: 'green', core: true },
+  c: { label: '보어', hue: 'purple', core: true },
+  mod: { label: '조동사', hue: 'orange', core: true },
+  prep: { label: '전치사', hue: 'cyan', core: false },
+  conj: { label: '접속사', hue: 'pink', core: false },
+  rel: { label: '관계사', hue: 'yellow', core: false },
+  n: { label: '명사', hue: 'teal', core: false },
+  adj: { label: '형용사', hue: 'gray', core: false },
+  adv: { label: '부사', hue: 'gray', core: false },
 }
 
 export const TAG_KEYS = Object.keys(BASE)
@@ -24,12 +27,12 @@ export const TAG_KEYS = Object.keys(BASE)
 export function tagInfo(tag: string): TagInfo {
   const key = tag.toLowerCase()
   const b = BASE[key]
-  if (!b) return { label: tag, color: 'var(--muted)', core: false }
+  if (!b) return { label: tag, hue: 'gray', core: false }
   const isLower = tag === key && tag !== tag.toUpperCase()
   const inClause = isLower && b.core
   return {
     label: inClause ? `${b.label} (절 안)` : b.label,
-    color: b.color,
+    hue: b.hue,
     core: b.core && !isLower,
   }
 }

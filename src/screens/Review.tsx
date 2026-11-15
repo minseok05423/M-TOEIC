@@ -1,39 +1,57 @@
 import { useMemo, useState } from 'react'
 import { ArrowRight, BookOpen } from 'lucide-react'
+import { VStack } from '@astryxdesign/core/VStack'
+import { HStack } from '@astryxdesign/core/HStack'
+import { Heading, Text } from '@astryxdesign/core/Text'
+import { Button } from '@astryxdesign/core/Button'
+import { Card } from '@astryxdesign/core/Card'
+import { Icon } from '@astryxdesign/core/Icon'
+import { ProgressBar } from '@astryxdesign/core/ProgressBar'
+import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
+import { EmptyState } from '@astryxdesign/core/EmptyState'
+import { List, ListItem } from '@astryxdesign/core/List'
 import { getState, useStore } from '../lib/store.ts'
-import { allWords, type StudyWord } from '../lib/words.ts'
-import { isDue, MAX_BOX, type SrsCard } from '../lib/srs.ts'
+import { allWords, dueWords, type StudyWord } from '../lib/words.ts'
+import { MAX_BOX, type SrsCard } from '../lib/srs.ts'
 import { addDays, formatDate, today } from '../lib/date.ts'
 import { href } from '../lib/router.ts'
 import { stars } from '../lib/game.ts'
-import { TopBar } from '../components/TopBar.tsx'
+import { PageTitle, Screen } from '../components/Screen.tsx'
 import { WordGame, type GameResult } from '../components/WordGame.tsx'
 import { GameDone } from '../components/GameDone.tsx'
 
 const SESSION = 15
 
-export function dueWords(srs: Record<string, SrsCard>, map: Map<string, StudyWord>): StudyWord[] {
-  const d = today()
-  return Object.entries(srs)
-    .filter(([k, c]) => isDue(c, d) && map.has(k))
-    .sort((a, b) => a[1].due.localeCompare(b[1].due) || a[1].box - b[1].box)
-    .map(([k]) => map.get(k)!)
-}
-
-/** 상자(box) 별 단어 수: 0 다시 보기 … 6 완벽 */
+/** 상자(box) 별 단어 수: 새 · 1 … 5 · 완벽 */
 function Shelf({ cards }: { cards: SrsCard[] }) {
   const counts = Array.from({ length: MAX_BOX + 1 }, (_, b) => cards.filter((c) => c.box === b).length)
   const max = Math.max(1, ...counts)
   return (
-    <div className="shelf" aria-label="외운 정도별 단어 수">
-      {counts.map((n, b) => (
-        <div key={b} className="shelf-col">
-          <span className="shelf-n">{n || ''}</span>
-          <span className={`shelf-bar b${b} ${n ? '' : 'zero'}`} style={{ height: `${8 + (n / max) * 72}px` }} />
-          <span className="shelf-l">{b === 0 ? '새' : b === MAX_BOX ? '완벽' : b}</span>
-        </div>
-      ))}
-    </div>
+    <List edge="outset" density="compact" header={<Heading level={3}>외운 정도</Heading>}>
+      {counts.map((n, b) => {
+        const name = b === 0 ? '새' : b === MAX_BOX ? '완벽' : `${b}칸`
+        return (
+          <ListItem
+            key={b}
+            label={
+              <HStack gap={3} vAlign="center">
+                <Text type="label" color="secondary">
+                  {name}
+                </Text>
+              </HStack>
+            }
+            description={
+              <ProgressBar label={`${name} ${n}개`} isLabelHidden value={n} max={max} variant={b === MAX_BOX ? 'success' : b === 0 ? 'neutral' : 'accent'} />
+            }
+            endContent={
+              <Text type="label" hasTabularNumbers>
+                {n}
+              </Text>
+            }
+          />
+        )
+      })}
+    </List>
   )
 }
 
@@ -81,7 +99,7 @@ export function Review() {
 
   if (result)
     return (
-      <div className="page">
+      <Screen>
         <GameDone
           stars={stars(result.right, result.right + result.wrong)}
           title="복습 끝!"
@@ -92,70 +110,61 @@ export function Review() {
           ]}
         >
           {due.length > 0 ? (
-            <button type="button" className="btn primary block big" onClick={start}>
-              남은 {due.length}개 계속하기
-            </button>
+            <Button label={`남은 ${due.length}개 계속하기`} variant="primary" size="lg" width="100%" onClick={start} />
           ) : (
-            <a className="btn primary block big" href="#/">
-              홈으로
-            </a>
+            <Button label="홈으로" variant="primary" size="lg" width="100%" href="#/" />
           )}
-          <button type="button" className="btn block big" onClick={() => (setSession(null), setResult(null))}>
-            복습 기록 보기
-          </button>
+          <Button label="복습 기록 보기" variant="secondary" size="lg" width="100%" onClick={() => (setSession(null), setResult(null))} />
         </GameDone>
-      </div>
+      </Screen>
     )
 
   return (
-    <div className="page">
-      <TopBar title="복습" />
-      {due.length ? (
-        <div className="review-card">
-          <p className="rc-label">오늘 복습할 단어</p>
-          <p className="rc-num">
-            {due.length}
-            <small>개</small>
-          </p>
-          <p className="muted small">{due.length > SESSION ? `한 판에 ${SESSION}개씩 해요. 5분이면 끝나요.` : '잊기 직전에 한 번 더 보면 오래가요.'}</p>
-          <button type="button" className="btn primary block big" onClick={start}>
-            복습 시작 <ArrowRight size={19} />
-          </button>
-        </div>
-      ) : (
-        <div className="review-card calm">
-          <p className="rc-label">오늘 복습 끝</p>
-          <p className="muted">
-            {stats.next ? `다음 복습은 ${formatDate(stats.next)}이에요.` : '레슨에서 단어 게임을 하거나 내 단어를 추가하면 여기에 나와요.'}
-          </p>
-          <a className="btn block" href={href('words')}>
-            <BookOpen size={18} /> 단어장 가기
-          </a>
-        </div>
-      )}
+    <Screen nav>
+      <VStack gap={6}>
+        <PageTitle>복습</PageTitle>
+        {due.length ? (
+          <Card padding={6}>
+            <VStack gap={4}>
+              <VStack gap={1}>
+                <Text type="label" color="secondary">
+                  오늘 복습할 단어
+                </Text>
+                <Heading level={2} type="display-1">
+                  {due.length}개
+                </Heading>
+                <Text type="supporting">{due.length > SESSION ? `한 판에 ${SESSION}개씩 해요. 5분이면 끝나요.` : '잊기 직전에 한 번 더 보면 오래가요.'}</Text>
+              </VStack>
+              <Button label="복습 시작" variant="primary" size="lg" width="100%" endContent={<Icon icon={ArrowRight} />} onClick={start} />
+            </VStack>
+          </Card>
+        ) : (
+          <EmptyState
+            title="오늘 복습 끝"
+            description={stats.next ? `다음 복습은 ${formatDate(stats.next)}이에요.` : '레슨에서 단어 게임을 하거나 내 단어를 추가하면 여기에 나와요.'}
+            actions={<Button label="단어장 가기" variant="secondary" icon={<Icon icon={BookOpen} />} href={href('words')} />}
+          />
+        )}
 
-      {stats.total > 0 && (
-        <section className="card">
-          <h3 className="group-title">외운 정도</h3>
-          <Shelf cards={stats.cards} />
-          <p className="small muted">맞힐 때마다 오른쪽 칸으로 한 칸씩, 틀리면 "새" 칸으로 돌아가요.</p>
-        </section>
-      )}
+        <MetadataList orientation="horizontal" label={{ position: 'top' }}>
+          <MetadataListItem label="외우는 단어">
+            <Heading level={2}>{stats.total}</Heading>
+          </MetadataListItem>
+          <MetadataListItem label="완벽히 외움">
+            <Heading level={2}>{stats.mastered}</Heading>
+          </MetadataListItem>
+          <MetadataListItem label="내일 복습">
+            <Heading level={2}>{stats.tomorrow}</Heading>
+          </MetadataListItem>
+        </MetadataList>
 
-      <div className="stats">
-        <div>
-          <b>{stats.total}</b>
-          <span>외우는 단어</span>
-        </div>
-        <div>
-          <b>{stats.mastered}</b>
-          <span>완벽히 외움</span>
-        </div>
-        <div>
-          <b>{stats.tomorrow}</b>
-          <span>내일 복습</span>
-        </div>
-      </div>
-    </div>
+        {stats.total > 0 && (
+          <VStack gap={2}>
+            <Shelf cards={stats.cards} />
+            <Text type="supporting">맞힐 때마다 아래 칸으로 한 칸씩, 틀리면 "새" 칸으로 돌아가요.</Text>
+          </VStack>
+        )}
+      </VStack>
+    </Screen>
   )
 }

@@ -1,24 +1,33 @@
 import { useMemo, useState } from 'react'
-import { ArrowRight, Check, X } from 'lucide-react'
+import { VStack } from '@astryxdesign/core/VStack'
+import { HStack } from '@astryxdesign/core/HStack'
+import { Heading, Text } from '@astryxdesign/core/Text'
+import { Button } from '@astryxdesign/core/Button'
 import type { Question } from '../content/types.ts'
 import { parseTap, tapPlain } from '../content/markup.ts'
-import { useImmersive } from '../lib/ui.ts'
+import { scrollToTop } from '../lib/ui.ts'
 import { sfx } from '../lib/sfx.ts'
+import { answer as ans, layout, motion, type as t } from '../ui/styles.ts'
 import { Inline } from './RichText.tsx'
-import { RunHead } from './RunHead.tsx'
+import { RunHead, Screen } from './Screen.tsx'
 import { Speak } from './Speak.tsx'
+import { Choice, choiceState, Feedback } from './Choice.tsx'
 
 function QText({ q, filled }: { q: string; filled?: string }) {
   const parts = q.split('____')
   return (
-    <p className="q-text en-serif">
+    <Heading level={2} xstyle={t.en}>
       {parts.map((p, i) => (
-        <span key={i}>
+        <Text key={i} type="inherit">
           {p}
-          {i < parts.length - 1 && <span className={`blank ${filled ? 'filled' : ''}`}>{filled ?? ' '}</span>}
-        </span>
+          {i < parts.length - 1 && (
+            <Text type="inherit" xstyle={[layout.blank, !!filled && layout.blankFilled]}>
+              {filled ?? ' '}
+            </Text>
+          )}
+        </Text>
       ))}
-    </p>
+    </Heading>
   )
 }
 
@@ -34,7 +43,6 @@ export function QuizRunner({
   /** 지금 문제의 메모 대상 id. 틀린 뒤라면 '헷갈리는 점' 으로 */
   onNote?: (targetId: string, confusing: boolean) => void
 }) {
-  useImmersive()
   const [idx, setIdx] = useState(0)
   const [picked, setPicked] = useState<number | null>(null)
   const [wrong, setWrong] = useState<string[]>([])
@@ -70,83 +78,87 @@ export function QuizRunner({
     }
     setIdx(idx + 1)
     setPicked(null)
-    window.scrollTo(0, 0)
+    scrollToTop()
   }
 
-  const cls = (i: number) => (!answered ? '' : i === correctIdx ? 'right' : i === picked ? 'wrong' : 'dim')
-  const mark = (i: number) =>
-    !answered ? null : i === correctIdx ? <Check className="mark" size={20} strokeWidth={2.6} /> : i === picked ? <X className="mark" size={20} strokeWidth={2.6} /> : null
+  const state = (i: number) => choiceState(answered, i === correctIdx, i === picked)
+  const sentence = q.type === 'mc' ? q.q.split('\n')[0].replace('____', q.choices[q.answer]) : tapPlain(q.text)
 
   return (
-    <div className={`quiz ${answered ? 'answered' : ''}`}>
-      <RunHead
-        exitHref={exitHref}
-        progress={(idx + (answered ? 1 : 0)) / questions.length}
-        combo={combo}
-        count={`${idx + 1}/${questions.length}`}
-        onNote={onNote && (() => onNote(`quiz:${q.id}`, answered && !ok))}
-      />
-
-      <div className="q-card" key={q.id}>
+    <Screen
+      header={
+        <RunHead
+          exitHref={exitHref}
+          progress={(idx + (answered ? 1 : 0)) / questions.length}
+          combo={combo}
+          count={`${idx + 1}/${questions.length}`}
+          onNote={onNote && (() => onNote(`quiz:${q.id}`, answered && !ok))}
+        />
+      }
+      footer={
+        answered && (
+          <Feedback
+            ok={ok}
+            title={ok ? (combo >= 3 ? `${combo}연속 정답!` : '맞았어요') : '아쉬워요'}
+            nextLabel={idx + 1 >= questions.length ? '결과 보기' : '다음'}
+            onNext={next}
+            extra={
+              !ok &&
+              onNote && <Button label="왜 틀렸는지 모르겠다면 · 메모 남기기" variant="secondary" width="100%" onClick={() => onNote(`quiz:${q.id}`, true)} />
+            }
+          >
+            <VStack gap={2}>
+              <Text type="body" xstyle={t.keepAll}>
+                <Inline text={q.explain} />
+              </Text>
+              {q.ko && (
+                <HStack gap={1} vAlign="center">
+                  <Speak text={sentence} size="sm" />
+                  <Text type="supporting">{q.ko}</Text>
+                </HStack>
+              )}
+            </VStack>
+          </Feedback>
+        )
+      }
+    >
+      <VStack gap={5} key={q.id} xstyle={motion.rise}>
         {q.type === 'mc' ? (
           <>
             <QText q={q.q} filled={answered ? q.choices[q.answer] : undefined} />
-            <div className="choices">
+            <VStack gap={2}>
               {q.choices.map((c, i) => (
-                <button key={i} type="button" className={`choice ${cls(i)}`} onClick={() => pick(i)}>
-                  <span className="choice-n">{'ABCDE'[i]}</span>
-                  <span className="en-serif">{c}</span>
-                  {mark(i)}
-                </button>
+                <Choice key={i} mark={'ABCDE'[i]} label={c} state={state(i)} onPick={() => pick(i)}>
+                  <Text type="large" weight="medium" xstyle={t.en}>
+                    {c}
+                  </Text>
+                </Choice>
               ))}
-            </div>
+            </VStack>
           </>
         ) : (
           <>
-            <p className="q-prompt">{q.prompt}</p>
-            <div className="tap-words">
-              {tap!.words.map((w, i) => (
-                <button key={i} type="button" className={`tap-word en-serif ${cls(i)}`} onClick={() => pick(i)}>
-                  {w}
-                </button>
-              ))}
-            </div>
+            <Heading level={2} xstyle={t.keepAll}>
+              {q.prompt}
+            </Heading>
+            <HStack gap={2} wrap="wrap">
+              {tap!.words.map((w, i) => {
+                const st = state(i)
+                return (
+                  <Button
+                    key={i}
+                    label={w}
+                    variant="secondary"
+                    size="lg"
+                    onClick={() => pick(i)}
+                    xstyle={[t.en, st === 'right' && ans.right, st === 'wrong' && [ans.wrong, motion.shake], st === 'dim' && ans.dim]}
+                  />
+                )
+              })}
+            </HStack>
           </>
         )}
-      </div>
-
-      {answered && (
-        <div className={`feedback ${ok ? 'ok' : 'no'}`} role="status">
-          <div className="fb-row">
-            <span className="fb-stamp">{ok ? <Check size={20} strokeWidth={3} /> : <X size={20} strokeWidth={3} />}</span>
-            <div className="fb-text">
-              <b>{ok ? (combo >= 3 ? `${combo}연속 정답!` : '맞았어요') : '아쉬워요'}</b>
-            </div>
-          </div>
-          <p className="fb-explain">
-            <Inline text={q.explain} />
-          </p>
-          {q.ko && (
-            <div className="fb-ko">
-              {q.type === 'mc' ? (
-                <Speak text={q.q.split('\n')[0].replace('____', q.choices[q.answer])} />
-              ) : (
-                <Speak text={tapPlain(q.text)} />
-              )}
-              <span>{q.ko}</span>
-            </div>
-          )}
-          {!ok && onNote && (
-            <button type="button" className="btn tonal block" onClick={() => onNote(`quiz:${q.id}`, true)}>
-              왜 틀렸는지 모르겠다면 · 메모 남기기
-            </button>
-          )}
-          <button type="button" className={`btn block big ${ok ? 'good' : 'primary'}`} onClick={next}>
-            {idx + 1 >= questions.length ? '결과 보기' : '다음'}
-            <ArrowRight size={19} />
-          </button>
-        </div>
-      )}
-    </div>
+      </VStack>
+    </Screen>
   )
 }

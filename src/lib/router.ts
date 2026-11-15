@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { scrollToTop } from './ui.ts'
 
 /** 해시 라우팅 '#/a/b' → ['a', 'b']. 휴대폰 뒤로가기 버튼이 그대로 동작함 */
 function parse(): string[] {
@@ -15,7 +16,7 @@ export function useRoute(): string[] {
   useEffect(() => {
     const on = () => {
       setRoute(parse())
-      window.scrollTo(0, 0)
+      scrollToTop()
     }
     window.addEventListener('hashchange', on)
     return () => window.removeEventListener('hashchange', on)

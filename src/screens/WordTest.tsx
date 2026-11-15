@@ -1,5 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, Check, ChevronDown, CircleHelp, ClipboardPaste, Plus, X } from 'lucide-react'
+import { ArrowRight, CircleHelp, ClipboardPaste, Plus } from 'lucide-react'
+import { VStack } from '@astryxdesign/core/VStack'
+import { HStack } from '@astryxdesign/core/HStack'
+import { Center } from '@astryxdesign/core/Center'
+import { Heading, Text } from '@astryxdesign/core/Text'
+import { Button } from '@astryxdesign/core/Button'
+import { Card } from '@astryxdesign/core/Card'
+import { Icon } from '@astryxdesign/core/Icon'
+import { Token } from '@astryxdesign/core/Token'
+import { Badge } from '@astryxdesign/core/Badge'
+import { Banner } from '@astryxdesign/core/Banner'
+import { EmptyState } from '@astryxdesign/core/EmptyState'
+import { List, ListItem } from '@astryxdesign/core/List'
+import { Collapsible } from '@astryxdesign/core/Collapsible'
+import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
 import { newId, reviewWord, saveTest, useStore, type WordTest as Test, type WordTestItem } from '../lib/store.ts'
 import { allWords, lessonWordList, type StudyWord } from '../lib/words.ts'
 import { planTest, WHY_LABEL, type PlannedItem, type Why } from '../lib/wordtest.ts'
@@ -8,17 +22,17 @@ import { formatDate, today } from '../lib/date.ts'
 import { href } from '../lib/router.ts'
 import { speak } from '../lib/tts.ts'
 import { sfx } from '../lib/sfx.ts'
-import { useImmersive } from '../lib/ui.ts'
-import { TopBar } from '../components/TopBar.tsx'
-import { RunHead } from '../components/RunHead.tsx'
+import { AppBar, RunHead, Screen } from '../components/Screen.tsx'
 import { GameDone } from '../components/GameDone.tsx'
-import { Speak } from '../components/Speak.tsx'
 import { WordRow } from '../components/WordRow.tsx'
-import { Meaning, PosTag } from '../components/Pos.tsx'
+import { PosTag } from '../components/Pos.tsx'
+import { Choice, choiceState } from '../components/Choice.tsx'
+import { BigWord, WordFeedback } from '../components/WordGame.tsx'
+import { motion, type as t } from '../ui/styles.ts'
 
-const partScore = (t: Test, part: WordTestItem['part']) => {
-  const xs = t.items.filter((x) => x.part === part)
-  return `${xs.filter((x) => x.ok).length}/${xs.length}`
+const partScore = (x: Test, part: WordTestItem['part']) => {
+  const xs = x.items.filter((i) => i.part === part)
+  return `${xs.filter((i) => i.ok).length}/${xs.length}`
 }
 
 export function WordTest() {
@@ -38,9 +52,9 @@ export function WordTest() {
         key={run.n}
         items={run.items}
         pool={pool}
-        onDone={(t) => {
-          saveTest(t)
-          setResult(t)
+        onDone={(x) => {
+          saveTest(x)
+          setResult(x)
         }}
       />
     )
@@ -48,142 +62,147 @@ export function WordTest() {
   if (result) {
     const wrong = result.items.filter((x) => !x.ok)
     return (
-      <div className="page">
-        <GameDone
-          stars={stars(result.score, result.total)}
-          title="단어 테스트 끝!"
-          line={`${result.total}문제 중 ${result.score}개 맞혔어요. ${wrong.length ? '틀린 단어는 다음 테스트에 다시 나와요.' : '완벽해요!'}`}
-          stats={[
-            { label: '새 단어', value: partScore(result, 'new') },
-            { label: '복습', value: partScore(result, 'review') },
-          ]}
-        >
-          <a className="btn primary block big" href="#/">
-            홈으로
-          </a>
-          <button type="button" className="btn block big" onClick={() => (setRun(null), setResult(null))}>
-            테스트 기록 보기
-          </button>
-        </GameDone>
-        {wrong.length > 0 && <WrongList items={wrong} />}
-      </div>
+      <Screen>
+        <VStack gap={6}>
+          <GameDone
+            stars={stars(result.score, result.total)}
+            title="단어 테스트 끝!"
+            line={`${result.total}문제 중 ${result.score}개 맞혔어요. ${wrong.length ? '틀린 단어는 다음 테스트에 다시 나와요.' : '완벽해요!'}`}
+            stats={[
+              { label: '새 단어', value: partScore(result, 'new') },
+              { label: '복습', value: partScore(result, 'review') },
+            ]}
+          >
+            <Button label="홈으로" variant="primary" size="lg" width="100%" href="#/" />
+            <Button label="테스트 기록 보기" variant="secondary" size="lg" width="100%" onClick={() => (setRun(null), setResult(null))} />
+          </GameDone>
+          {wrong.length > 0 && (
+            <List edge="outset" hasDividers header={<Heading level={3}>다시 볼 단어 · {wrong.length}</Heading>}>
+              {wrong.map((x) => (
+                <WordRow key={x.key} en={x.en} ko={x.ko} pos={x.pos} level={x.skip ? '모르겠어요' : '틀림'} />
+              ))}
+            </List>
+          )}
+        </VStack>
+      </Screen>
     )
   }
 
-  const todays = history.filter((t) => t.day === today())
+  const todays = history.filter((x) => x.day === today())
   const notToday = plan.latestDay !== today()
   const reasons = (Object.keys(plan.why) as Why[]).filter((k) => plan.why[k])
 
   return (
-    <div className="page">
-      <TopBar title="단어 테스트" back="#/" />
-      {plan.items.length ? (
-        <div className="review-card">
-          <p className="rc-label">{todays.length ? `오늘 ${todays.length}번 봤어요 · 한 번 더?` : '오늘의 단어 테스트'}</p>
-          <p className="rc-num">
-            {plan.items.length}
-            <small>문제</small>
-          </p>
-          <ul className="test-plan">
-            {plan.newCount > 0 && (
-              <li>
-                <b>새 단어 {plan.newCount}개</b>
-                <span>
-                  {plan.latestDay && `${formatDate(plan.latestDay)}에 넣은 단어${plan.latestCount < plan.newCount ? ` ${plan.latestCount}개` : ''}`}
-                  {plan.latestCount < plan.newCount && ` + 아직 시험 안 본 단어 ${plan.newCount - plan.latestCount}개`}
-                </span>
-              </li>
-            )}
-            {plan.reviewCount > 0 && (
-              <li>
-                <b>복습 {plan.reviewCount}개</b>
-                <span>{reasons.map((k) => `${WHY_LABEL[k]} ${plan.why[k]}`).join(' · ')}</span>
-              </li>
-            )}
-          </ul>
-          {notToday && plan.newCount > 0 && (
-            <p className="test-hint small">
-              오늘 외운 단어를 아직 안 넣었어요. 먼저 넣으면 오늘 단어로 시험 봐요.
-              <span className="row-gap">
-                <a className="btn small tonal" href={href('words', 'bulk')}>
-                  <ClipboardPaste size={14} /> 여러 개 붙여넣기
-                </a>
-                <a className="btn small tonal" href={href('words', 'new')}>
-                  <Plus size={14} /> 하나씩
-                </a>
-              </span>
-            </p>
-          )}
-          <button type="button" className="btn primary block big" onClick={() => setRun({ items: shuffle(plan.items), n: (run?.n ?? 0) + 1 })}>
-            시작 <ArrowRight size={19} />
-          </button>
-          <p className="muted small">뜻을 고르는 4지선다예요. 모르면 찍지 말고 "모르겠어요"를 눌러요.</p>
-        </div>
-      ) : (
-        <div className="review-card calm">
-          <p className="rc-label">아직 시험 볼 단어가 없어요</p>
-          <p className="muted">오늘 외운 단어를 단어장에 넣으면 여기서 시험 봐요.</p>
-          <a className="btn primary block" href={href('words', 'bulk')}>
-            <ClipboardPaste size={18} /> 단어 넣기
-          </a>
-        </div>
-      )}
+    <Screen header={<AppBar back="#/" title="단어 테스트" />}>
+      <VStack gap={6}>
+        {plan.items.length ? (
+          <Card padding={6}>
+            <VStack gap={4}>
+              <VStack gap={1}>
+                <Text type="label" color="secondary">
+                  {todays.length ? `오늘 ${todays.length}번 봤어요 · 한 번 더?` : '오늘의 단어 테스트'}
+                </Text>
+                <Heading level={2} type="display-1">
+                  {plan.items.length}문제
+                </Heading>
+              </VStack>
+              <MetadataList columns="single" label={{ position: 'start', width: 88 }}>
+                {plan.newCount > 0 && (
+                  <MetadataListItem label={`새 단어 ${plan.newCount}`}>
+                    <Text type="body" xstyle={t.keepAll}>
+                      {plan.latestDay && `${formatDate(plan.latestDay)}에 넣은 단어${plan.latestCount < plan.newCount ? ` ${plan.latestCount}개` : ''}`}
+                      {plan.latestCount < plan.newCount && ` + 아직 시험 안 본 단어 ${plan.newCount - plan.latestCount}개`}
+                    </Text>
+                  </MetadataListItem>
+                )}
+                {plan.reviewCount > 0 && (
+                  <MetadataListItem label={`복습 ${plan.reviewCount}`}>
+                    <Text type="body" xstyle={t.keepAll}>
+                      {reasons.map((k) => `${WHY_LABEL[k]} ${plan.why[k]}`).join(' · ')}
+                    </Text>
+                  </MetadataListItem>
+                )}
+              </MetadataList>
+              {notToday && plan.newCount > 0 && (
+                <Banner
+                  status="warning"
+                  title="오늘 외운 단어를 아직 안 넣었어요"
+                  description="먼저 넣으면 오늘 단어로 시험 봐요."
+                  endContent={
+                    <HStack gap={1} wrap="wrap">
+                      <Button label="여러 개 붙여넣기" size="sm" variant="secondary" icon={<Icon icon={ClipboardPaste} />} href={href('words', 'bulk')} />
+                      <Button label="하나씩" size="sm" variant="secondary" icon={<Icon icon={Plus} />} href={href('words', 'new')} />
+                    </HStack>
+                  }
+                />
+              )}
+              <Button
+                label="시작"
+                variant="primary"
+                size="lg"
+                width="100%"
+                endContent={<Icon icon={ArrowRight} />}
+                onClick={() => setRun({ items: shuffle(plan.items), n: (run?.n ?? 0) + 1 })}
+              />
+              <Text type="supporting">뜻을 고르는 4지선다예요. 모르면 찍지 말고 "모르겠어요"를 눌러요.</Text>
+            </VStack>
+          </Card>
+        ) : (
+          <EmptyState
+            title="아직 시험 볼 단어가 없어요"
+            description="오늘 외운 단어를 단어장에 넣으면 여기서 시험 봐요."
+            actions={<Button label="단어 넣기" variant="primary" icon={<Icon icon={ClipboardPaste} />} href={href('words', 'bulk')} />}
+          />
+        )}
 
-      {history.length > 0 && (
-        <section className="card">
-          <h3 className="group-title">지난 테스트</h3>
-          <ul className="test-history">
-            {history.slice(0, 14).map((t) => {
-              const wrong = t.items.filter((x) => !x.ok)
+        {history.length > 0 && (
+          <List edge="outset" hasDividers header={<Heading level={3}>지난 테스트</Heading>}>
+            {history.slice(0, 14).map((x) => {
+              const wrong = x.items.filter((i) => !i.ok)
+              const row = (
+                <HStack gap={3} vAlign="center">
+                  <Text type="body">{formatDate(x.day)}</Text>
+                  <Text type="body" weight="bold" hasTabularNumbers color={x.score === x.total ? 'accent' : 'primary'}>
+                    {x.score}/{x.total}
+                  </Text>
+                  {wrong.length ? <Badge variant="warning" label={`틀림 ${wrong.length}`} /> : <Token size="sm" color="green" label="만점" />}
+                </HStack>
+              )
               return (
-                <li key={t.id}>
-                  <details>
-                    <summary>
-                      <span className="th-day">{formatDate(t.day)}</span>
-                      <b className={t.score === t.total ? 'good' : ''}>
-                        {t.score}/{t.total}
-                      </b>
-                      <span className="muted small">{wrong.length ? `틀림 ${wrong.length}` : '만점'}</span>
-                      {wrong.length > 0 && <ChevronDown size={16} />}
-                    </summary>
-                    {wrong.length > 0 && (
-                      <p className="small th-wrong">
-                        {wrong.map((x) => (
-                          <span key={x.key}>
-                            <span className="en-serif">{x.en}</span> {x.ko}
-                          </span>
-                        ))}
-                      </p>
-                    )}
-                  </details>
-                </li>
+                <ListItem
+                  key={x.id}
+                  label={
+                    wrong.length ? (
+                      <Collapsible trigger={row}>
+                        <VStack gap={1}>
+                          {wrong.map((i) => (
+                            <Text key={i.key} type="supporting">
+                              <Text type="inherit" weight="semibold" xstyle={t.en}>
+                                {i.en}
+                              </Text>{' '}
+                              {i.ko}
+                            </Text>
+                          ))}
+                        </VStack>
+                      </Collapsible>
+                    ) : (
+                      row
+                    )
+                  }
+                />
               )
             })}
-          </ul>
-        </section>
-      )}
-    </div>
-  )
-}
-
-function WrongList({ items }: { items: WordTestItem[] }) {
-  return (
-    <section className="card word-card">
-      <h3 className="group-title">다시 볼 단어 · {items.length}</h3>
-      <ul className="word-list">
-        {items.map((x) => (
-          <WordRow key={x.key} en={x.en} ko={x.ko} pos={x.pos} level={x.skip ? '모르겠어요' : '틀림'} />
-        ))}
-      </ul>
-    </section>
+          </List>
+        )}
+      </VStack>
+    </Screen>
   )
 }
 
 type Q = PlannedItem & { choices: StudyWord[] }
 
 /** 한 단어에 한 번씩, 다시 풀기 없음. 답할 때마다 복습 기록(SRS)에도 반영 */
-function TestRun({ items, pool, onDone }: { items: PlannedItem[]; pool: StudyWord[]; onDone: (t: Test) => void }) {
-  useImmersive()
+function TestRun({ items, pool, onDone }: { items: PlannedItem[]; pool: StudyWord[]; onDone: (x: Test) => void }) {
   const [qs] = useState<Q[]>(() => items.map((it) => ({ ...it, choices: shuffle([it.w, ...distractors(it.w, pool)]) })))
   const [pos, setPos] = useState(0)
   /** 고른 보기 번호, -1 = 모르겠어요 */
@@ -221,69 +240,43 @@ function TestRun({ items, pool, onDone }: { items: PlannedItem[]; pool: StudyWor
 
   useEffect(() => {
     if (!ok) return
-    const t = setTimeout(next, 800)
-    return () => clearTimeout(t)
+    const tm = setTimeout(next, 800)
+    return () => clearTimeout(tm)
   })
 
   const answered = picked !== null
   return (
-    <div className="game">
-      <RunHead exitHref="#/" progress={(pos + (answered ? 1 : 0)) / qs.length} count={`${pos + 1}/${qs.length}`} />
-      <div className="game-body" key={pos}>
-        <p className="game-prompt">
-          {q.part === 'review' && <span className="tag-retry">복습</span>}이 단어의 뜻은?
-        </p>
-        <div className="q-stage">
-          <div className="q-word">
-            <span className="en-serif">{q.w.en}</span>
-            <Speak text={q.w.en} />
-          </div>
-          <PosTag pos={q.w.pos} />
-        </div>
-        <div className="choices ko">
-          {q.choices.map((c, i) => {
-            const cls = !answered ? '' : c === q.w ? 'right' : i === picked ? 'wrong' : 'dim'
-            return (
-              <button key={c.key} type="button" className={`choice ${cls}`} onClick={() => answer(i)} disabled={answered && c !== q.w && i !== picked}>
-                <span className="choice-n">{i + 1}</span>
-                <span>{c.ko}</span>
-                {answered && c === q.w && <Check className="mark" size={20} strokeWidth={2.6} />}
-                {answered && i === picked && c !== q.w && <X className="mark" size={20} strokeWidth={2.6} />}
-              </button>
-            )
-          })}
-        </div>
-        {!answered && (
-          <button type="button" className="btn block test-skip" onClick={() => answer(-1)}>
-            <CircleHelp size={18} /> 모르겠어요
-          </button>
-        )}
-      </div>
-      {answered && (
-        <div className={`feedback ${ok ? 'ok' : 'no'}`} role="status">
-          <div className="fb-row">
-            <span className="fb-stamp">{ok ? <Check size={20} strokeWidth={3} /> : <X size={20} strokeWidth={3} />}</span>
-            <div className="fb-text">
-              <b>{ok ? '맞았어요' : picked! < 0 ? '괜찮아요, 정답은' : '정답은'}</b>
-              {!ok && (
-                <span>
-                  <span className="en-serif">{q.w.en}</span> = <Meaning ko={q.w.ko} pos={q.w.pos} />
-                </span>
-              )}
-            </div>
-            {!ok && <Speak text={q.w.en} />}
-          </div>
-          {!ok && q.w.ex && (
-            <p className="fb-ex">
-              <span className="en-serif">{q.w.ex.en}</span>
-              <span>{q.w.ex.ko}</span>
-            </p>
-          )}
-          <button type="button" className={`btn block big ${ok ? 'good' : 'primary'}`} onClick={next}>
-            계속 <ArrowRight size={19} />
-          </button>
-        </div>
-      )}
-    </div>
+    <Screen
+      header={<RunHead exitHref="#/" progress={(pos + (answered ? 1 : 0)) / qs.length} count={`${pos + 1}/${qs.length}`} />}
+      footer={
+        answered ? (
+          <WordFeedback w={q.w} ok={ok} skipped={picked! < 0} onNext={next} />
+        ) : (
+          <Button label="모르겠어요" variant="secondary" size="lg" width="100%" icon={<Icon icon={CircleHelp} />} onClick={() => answer(-1)} />
+        )
+      }
+    >
+      <VStack gap={5} key={pos} xstyle={motion.rise}>
+        <HStack gap={2} vAlign="center">
+          {q.part === 'review' && <Token color="orange" label="복습" />}
+          <Heading level={2}>이 단어의 뜻은?</Heading>
+        </HStack>
+        <Center paddingBlock={4}>
+          <VStack gap={2} hAlign="center">
+            <BigWord en={q.w.en} />
+            <PosTag pos={q.w.pos} />
+          </VStack>
+        </Center>
+        <VStack gap={2}>
+          {q.choices.map((c, i) => (
+            <Choice key={c.key} mark={`${i + 1}`} label={c.ko} state={choiceState(answered, c === q.w, i === picked)} onPick={() => answer(i)}>
+              <Text type="large" weight="medium" xstyle={t.keepAll}>
+                {c.ko}
+              </Text>
+            </Choice>
+          ))}
+        </VStack>
+      </VStack>
+    </Screen>
   )
 }

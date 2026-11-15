@@ -1,29 +1,38 @@
 import { useState } from 'react'
 import { Lightbulb, Pencil, Star } from 'lucide-react'
+import { ListItem } from '@astryxdesign/core/List'
+import { VStack } from '@astryxdesign/core/VStack'
+import { HStack } from '@astryxdesign/core/HStack'
+import { Text } from '@astryxdesign/core/Text'
+import { Icon } from '@astryxdesign/core/Icon'
+import { Button } from '@astryxdesign/core/Button'
+import { ToggleButton } from '@astryxdesign/core/ToggleButton'
+import { ProgressBar } from '@astryxdesign/core/ProgressBar'
+import { Switch } from '@astryxdesign/core/Switch'
 import { MAX_BOX } from '../lib/srs.ts'
+import { layout, type as t } from '../ui/styles.ts'
 import { Speak } from './Speak.tsx'
 import { Meaning } from './Pos.tsx'
 
 export function HideKoSwitch({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <label className="toggle small">
-      뜻 가리기
-      <input type="checkbox" className="switch" checked={value} onChange={(e) => onChange(e.target.checked)} />
-    </label>
-  )
+  return <Switch label="뜻 가리기" size="sm" value={value} onChange={onChange} />
 }
 
-/** 외운 정도: 칸 6개 */
+/** 외운 정도: 0~6칸 */
 function Meter({ box, title }: { box: number; title?: string }) {
   return (
-    <span className={`meter b${box}`} title={title} aria-label={title}>
-      {Array.from({ length: MAX_BOX }, (_, i) => (
-        <i key={i} className={i < box ? 'on' : ''} />
-      ))}
-    </span>
+    <ProgressBar
+      label={title ?? '외운 정도'}
+      isLabelHidden
+      value={box}
+      max={MAX_BOX}
+      variant={box >= MAX_BOX ? 'success' : box === 0 ? 'neutral' : 'accent'}
+      xstyle={layout.meter}
+    />
   )
 }
 
+/** 단어 한 줄. 누르면 예문·메모·수정이 펼쳐짐. List 안에 넣어서 쓰세요 */
 export function WordRow({
   en,
   ko,
@@ -52,62 +61,76 @@ export function WordRow({
 }) {
   const [open, setOpen] = useState(false)
   const shown = !hideKo || open
+  const more = open && (ex || tip || onEdit || level)
   return (
-    <li className="word-row" onClick={() => setOpen(!open)}>
-      <div className="word-main">
-        <Speak text={en} />
-        <div className="word-text">
-          <b className="word-en en-serif">{en}</b>
-          <span className={`word-ko ${shown ? '' : 'hidden'}`}>{shown ? <Meaning ko={ko} pos={pos} /> : '탭해서 보기'}</span>
-        </div>
-        {box !== undefined && <Meter box={box} title={level} />}
-        {onStar && (
-          <button
-            type="button"
-            className={`star-btn ${important ? 'on' : ''}`}
-            aria-label={important ? '중요 표시 끄기' : '중요 표시'}
-            aria-pressed={!!important}
-            onClick={(e) => {
-              e.stopPropagation()
-              onStar()
-            }}
-          >
-            <Star size={19} strokeWidth={2.2} />
-          </button>
-        )}
-      </div>
-      {open && (ex || tip || onEdit || level) && (
-        <div className="word-more">
-          {ex && (
-            <div className="word-ex">
-              <Speak text={ex.en} />
-              <span>
-                <span className="en-serif">{ex.en}</span>
-                <br />
-                <span className="muted small">{ex.ko}</span>
-              </span>
-            </div>
+    <ListItem
+      align="first-line"
+      onClick={() => setOpen(!open)}
+      aria-expanded={open}
+      startContent={<Speak text={en} />}
+      label={
+        <Text type="large" weight="semibold" xstyle={t.en}>
+          {en}
+        </Text>
+      }
+      description={
+        <VStack gap={2}>
+          <Text type="body" color={shown ? 'primary' : 'placeholder'} xstyle={t.keepAll}>
+            {shown ? <Meaning ko={ko} pos={pos} /> : '탭해서 보기'}
+          </Text>
+          {more && (
+            <VStack gap={2}>
+              {ex && (
+                <HStack gap={1} vAlign="start">
+                  <Speak text={ex.en} size="sm" />
+                  <VStack gap={0.5}>
+                    <Text type="body" xstyle={t.en}>
+                      {ex.en}
+                    </Text>
+                    <Text type="supporting">{ex.ko}</Text>
+                  </VStack>
+                </HStack>
+              )}
+              {tip && (
+                <HStack gap={1} vAlign="center">
+                  <Icon icon={Lightbulb} size="sm" color="warning" />
+                  <Text type="supporting">{tip}</Text>
+                </HStack>
+              )}
+              {level && <Text type="supporting">상태 · {level}</Text>}
+              {onEdit && (
+                <HStack>
+                  <Button
+                    label="수정"
+                    size="sm"
+                    variant="secondary"
+                    icon={<Icon icon={Pencil} />}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onEdit()
+                    }}
+                  />
+                </HStack>
+              )}
+            </VStack>
           )}
-          {tip && (
-            <p className="word-tip small">
-              <Lightbulb size={14} /> <span>{tip}</span>
-            </p>
+        </VStack>
+      }
+      endContent={
+        <HStack gap={2} vAlign="center">
+          {box !== undefined && <Meter box={box} title={level} />}
+          {onStar && (
+            <ToggleButton
+              label={important ? '중요 표시 끄기' : '중요 표시'}
+              isIconOnly
+              size="sm"
+              icon={<Icon icon={Star} color={important ? 'warning' : 'secondary'} />}
+              isPressed={!!important}
+              onPressedChange={() => onStar()}
+            />
           )}
-          {level && <p className="small muted">상태 · {level}</p>}
-          {onEdit && (
-            <button
-              type="button"
-              className="btn small"
-              onClick={(e) => {
-                e.stopPropagation()
-                onEdit()
-              }}
-            >
-              <Pencil size={14} /> 수정
-            </button>
-          )}
-        </div>
-      )}
-    </li>
+        </HStack>
+      }
+    />
   )
 }

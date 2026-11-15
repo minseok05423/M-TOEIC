@@ -1,10 +1,20 @@
 import { useMemo, useState } from 'react'
 import { ArrowRight, Languages } from 'lucide-react'
+import { VStack } from '@astryxdesign/core/VStack'
+import { HStack } from '@astryxdesign/core/HStack'
+import { StackItem } from '@astryxdesign/core/Stack'
+import { Heading, Text } from '@astryxdesign/core/Text'
+import { Button } from '@astryxdesign/core/Button'
+import { ToggleButton } from '@astryxdesign/core/ToggleButton'
+import { Card } from '@astryxdesign/core/Card'
+import { Icon } from '@astryxdesign/core/Icon'
+import { Token } from '@astryxdesign/core/Token'
 import type { AnalyzedSentence } from '../content/types.ts'
 import { parseMarkup, plainText, tagInfo } from '../content/markup.ts'
 import { sfx } from '../lib/sfx.ts'
-import { useImmersive } from '../lib/ui.ts'
-import { RunHead } from './RunHead.tsx'
+import { scrollToTop } from '../lib/ui.ts'
+import { answer as ans, hueFill, hueText, motion, type as t } from '../ui/styles.ts'
+import { RunHead, Screen } from './Screen.tsx'
 import { SentenceView } from './SentenceView.tsx'
 import { Speak } from './Speak.tsx'
 
@@ -48,7 +58,8 @@ function why(c: Chip, want: Want): string {
   return `${tagInfo(k).label}예요.`
 }
 
-function One({ s, onSolved }: { s: AnalyzedSentence; onSolved: (clean: boolean) => void }) {
+/** 한 문장: 동사 → 주어 차례로 찾기. 다 찾으면 분석 카드 + 아래 '다음' 버튼 */
+function useOne(s: AnalyzedSentence) {
   const cs = useMemo(() => chips(s.text), [s.text])
   const wants = useMemo<Want[]>(() => (cs.some((c) => c.tag === 'S') ? ['V', 'S'] : ['V']), [cs])
   const [wi, setWi] = useState(0)
@@ -56,11 +67,9 @@ function One({ s, onSolved }: { s: AnalyzedSentence; onSolved: (clean: boolean) 
   const [miss, setMiss] = useState<{ i: number; msg: string } | null>(null)
   const [misses, setMisses] = useState(0)
   const [stepMisses, setStepMisses] = useState(0)
-  const [ko, setKo] = useState(false)
   const revealed = wi >= wants.length
   const want = wants[wi]
   const targets = cs.map((c, i) => (c.tag === want ? i : -1)).filter((i) => i >= 0)
-  const left = targets.filter((i) => !found.has(i)).length
 
   function tap(i: number) {
     if (revealed || found.has(i)) return
@@ -69,7 +78,7 @@ function One({ s, onSolved }: { s: AnalyzedSentence; onSolved: (clean: boolean) 
       const f = new Set(found).add(i)
       setFound(f)
       setMiss(null)
-      if (targets.every((t) => f.has(t))) {
+      if (targets.every((x) => f.has(x))) {
         sfx.right()
         setWi(wi + 1)
         setStepMisses(0)
@@ -81,7 +90,13 @@ function One({ s, onSolved }: { s: AnalyzedSentence; onSolved: (clean: boolean) 
       setStepMisses(stepMisses + 1)
     }
   }
+  return { cs, wants, wi, found, miss, misses, stepMisses, revealed, want, targets, tap }
+}
 
+function Puzzle({ s, game }: { s: AnalyzedSentence; game: ReturnType<typeof useOne> }) {
+  const { cs, wants, wi, found, miss, misses, stepMisses, want, targets, tap } = game
+  const [ko, setKo] = useState(false)
+  const left = targets.filter((i) => !found.has(i)).length
   const prompt =
     want === 'V'
       ? targets.length > 1
@@ -92,64 +107,55 @@ function One({ s, onSolved }: { s: AnalyzedSentence; onSolved: (clean: boolean) 
         : '이 동사의 주어는?'
 
   return (
-    <>
-      {!revealed ? (
-        <>
-          <p className="game-prompt">
-            <span className={`want want-${want}`}>{want}</span>
-            {prompt}
-            {targets.length > 1 && left < targets.length && <span className="muted small"> · {left}개 남음</span>}
-          </p>
-          <div className="sg-card">
-            <div className="sg-tools">
+    <VStack gap={4}>
+      <HStack gap={2} vAlign="center" wrap="wrap">
+        <Token color={want === 'V' ? 'red' : 'blue'} label={want} />
+        <Heading level={2} xstyle={t.keepAll}>
+          {prompt}
+        </Heading>
+        {targets.length > 1 && left < targets.length && <Text type="supporting">{left}개 남음</Text>}
+      </HStack>
+      <Card>
+        <VStack gap={3}>
+          <HStack gap={2} vAlign="center">
+            <StackItem size="fill">
               <Speak text={plainText(s.text)} />
-              <button type="button" className={`chip ${ko ? 'on' : ''}`} onClick={() => setKo(!ko)}>
-                <Languages size={15} /> 해석 힌트
-              </button>
-            </div>
-            <p className="sg-sent">
-              {cs.map((c, i) => {
-                if (c.punct)
-                  return (
-                    <span key={i} className="sg-punct">
-                      {c.text}
-                    </span>
-                  )
-                const isFound = found.has(i) || (c.tag && wants.indexOf(c.tag as Want) > -1 && wants.indexOf(c.tag as Want) < wi)
-                const color = c.tag ? tagInfo(c.tag).color : undefined
-                const hint = stepMisses >= 2 && targets.includes(i) && !found.has(i)
+            </StackItem>
+            <ToggleButton label="해석 힌트" size="sm" icon={<Icon icon={Languages} />} isPressed={ko} onPressedChange={setKo}>
+              해석 힌트
+            </ToggleButton>
+          </HStack>
+          <HStack as="p" gap={1.5} wrap="wrap" vAlign="center">
+            {cs.map((c, i) => {
+              if (c.punct)
                 return (
-                  <button
-                    key={i}
-                    type="button"
-                    className={`gtok en-serif ${isFound ? 'found' : ''} ${miss?.i === i ? 'miss' : ''} ${hint ? 'hint' : ''}`}
-                    style={isFound ? ({ '--c': color } as React.CSSProperties) : undefined}
-                    onClick={() => tap(i)}
-                  >
+                  <Text key={i} type="large" xstyle={t.enLarge}>
                     {c.text}
-                    {isFound && <span className="gtok-tag">{c.tag}</span>}
-                  </button>
+                  </Text>
                 )
-              })}
-            </p>
-            {ko && <p className="sg-ko">{s.ko}</p>}
-          </div>
-          <p className={`sg-why ${miss ? 'show' : ''}`} key={misses}>
-            {miss ? miss.msg : want === 'V' ? '시제가 붙은 동사 · 덩어리(절) 밖에 있어요' : '동사 앞의 "누가 / 무엇이"'}
-          </p>
-        </>
-      ) : (
-        <>
-          <p className="game-prompt">{misses === 0 ? '한 번에 찾았어요!' : '뼈대를 찾았어요'}</p>
-          <SentenceView s={s} opts={{ skeleton: false, ko: true, slash: true }} index={-1} />
-          <div className="game-foot">
-            <button type="button" className="btn primary block big" onClick={() => onSolved(misses === 0)}>
-              다음 <ArrowRight size={19} />
-            </button>
-          </div>
-        </>
-      )}
-    </>
+              const doneStep = c.tag && wants.indexOf(c.tag as Want) > -1 && wants.indexOf(c.tag as Want) < wi
+              const isFound = found.has(i) || !!doneStep
+              const hue = c.tag ? tagInfo(c.tag).hue : 'gray'
+              const hint = stepMisses >= 2 && targets.includes(i) && !found.has(i)
+              return (
+                <Button
+                  key={miss?.i === i ? `${i}-${misses}` : i}
+                  label={c.text}
+                  variant="secondary"
+                  onClick={() => tap(i)}
+                  xstyle={[t.en, isFound && [hueFill[hue], hueText[hue]], miss?.i === i && [ans.wrong, motion.shake], hint && ans.hint]}
+                  endContent={isFound ? <Token size="sm" color={hue} label={c.tag!} /> : undefined}
+                />
+              )
+            })}
+          </HStack>
+          {ko && <Text type="supporting">{s.ko}</Text>}
+        </VStack>
+      </Card>
+      <Text key={misses} type="body" color={miss ? 'primary' : 'secondary'} xstyle={[t.keepAll, miss && motion.rise]}>
+        {miss ? miss.msg : want === 'V' ? '시제가 붙은 동사 · 덩어리(절) 밖에 있어요' : '동사 앞의 "누가 / 무엇이"'}
+      </Text>
+    </VStack>
   )
 }
 
@@ -165,38 +171,66 @@ export function SentenceGame({
   onDone: (clean: number, total: number) => void
   onNote?: (targetId: string) => void
 }) {
-  useImmersive()
   const [i, setI] = useState(0)
   const [clean, setClean] = useState(0)
   const [combo, setCombo] = useState(0)
   const s = sentences[i]
   if (!s) return null
   return (
-    <div className="game">
-      <RunHead
-        exitHref={exitHref}
-        progress={i / sentences.length}
-        combo={combo}
-        count={`${i + 1}/${sentences.length}`}
-        onNote={onNote && (() => onNote(`sentences:${s.id}`))}
-      />
-      <div className="game-body" key={s.id}>
-        <One
-          s={s}
-          onSolved={(ok) => {
-            const c = clean + (ok ? 1 : 0)
-            setClean(c)
-            setCombo(ok ? combo + 1 : 0)
-            if (i + 1 >= sentences.length) {
-              sfx.done()
-              onDone(c, sentences.length)
-            } else {
-              setI(i + 1)
-              window.scrollTo(0, 0)
-            }
-          }}
+    <Round
+      key={s.id}
+      s={s}
+      head={
+        <RunHead
+          exitHref={exitHref}
+          progress={i / sentences.length}
+          combo={combo}
+          count={`${i + 1}/${sentences.length}`}
+          onNote={onNote && (() => onNote(`sentences:${s.id}`))}
         />
-      </div>
-    </div>
+      }
+      onSolved={(ok) => {
+        const c = clean + (ok ? 1 : 0)
+        setClean(c)
+        setCombo(ok ? combo + 1 : 0)
+        if (i + 1 >= sentences.length) {
+          sfx.done()
+          onDone(c, sentences.length)
+        } else {
+          setI(i + 1)
+          scrollToTop()
+        }
+      }}
+    />
+  )
+}
+
+function Round({ s, head, onSolved }: { s: AnalyzedSentence; head: React.ReactNode; onSolved: (clean: boolean) => void }) {
+  const game = useOne(s)
+  return (
+    <Screen
+      header={head}
+      footer={
+        game.revealed && (
+          <Button
+            label="다음"
+            variant="primary"
+            size="lg"
+            width="100%"
+            endContent={<Icon icon={ArrowRight} />}
+            onClick={() => onSolved(game.misses === 0)}
+          />
+        )
+      }
+    >
+      {game.revealed ? (
+        <VStack gap={4} xstyle={motion.rise}>
+          <Heading level={2}>{game.misses === 0 ? '한 번에 찾았어요!' : '뼈대를 찾았어요'}</Heading>
+          <SentenceView s={s} opts={{ skeleton: false, ko: true, slash: true }} index={-1} />
+        </VStack>
+      ) : (
+        <Puzzle s={s} game={game} />
+      )}
+    </Screen>
   )
 }

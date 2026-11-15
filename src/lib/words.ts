@@ -1,6 +1,9 @@
 import type { Example, Word } from '../content/types.ts'
 import { getChapters, type ShownChapter } from './content.ts'
-import type { CustomWord } from './store.ts'
+import { useMemo } from 'react'
+import { useStore, type CustomWord } from './store.ts'
+import { isDue, type SrsCard } from './srs.ts'
+import { today } from './date.ts'
 
 /** 레슨 단어와 내 단어를 같은 모양으로 다루기 위한 형태 */
 export interface StudyWord {
@@ -101,4 +104,21 @@ export function decks(words: Record<string, CustomWord>): string[] {
   for (const w of Object.values(words).sort((a, b) => b.createdAt - a.createdAt))
     if (!w.deleted && !out.includes(w.deck)) out.push(w.deck)
   return out
+}
+
+/** 오늘 복습할 단어 (날짜가 지난 것부터, 약한 것부터) */
+export function dueWords(srs: Record<string, SrsCard>, map: Map<string, StudyWord>): StudyWord[] {
+  const d = today()
+  return Object.entries(srs)
+    .filter(([k, c]) => isDue(c, d) && map.has(k))
+    .sort((a, b) => a[1].due.localeCompare(b[1].due) || a[1].box - b[1].box)
+    .map(([k]) => map.get(k)!)
+}
+
+/** 아래 탭바와 홈에서 쓰는 '오늘 복습할 단어 수' */
+export function useDueCount(): number {
+  const srs = useStore((s) => s.progress.srs)
+  const words = useStore((s) => s.words)
+  const userChapters = useStore((s) => s.userChapters)
+  return useMemo(() => dueWords(srs, allWords(words)).length, [srs, words, userChapters])
 }

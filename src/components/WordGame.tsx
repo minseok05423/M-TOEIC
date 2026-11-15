@@ -1,14 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, Check, Ear, Lightbulb, Volume2, X } from 'lucide-react'
+import { ArrowRight, Ear, Lightbulb, Volume2 } from 'lucide-react'
+import { VStack } from '@astryxdesign/core/VStack'
+import { HStack } from '@astryxdesign/core/HStack'
+import { Grid } from '@astryxdesign/core/Grid'
+import { Heading, Text } from '@astryxdesign/core/Text'
+import { Button } from '@astryxdesign/core/Button'
+import { Card } from '@astryxdesign/core/Card'
+import { Token } from '@astryxdesign/core/Token'
+import { Icon } from '@astryxdesign/core/Icon'
+import { Center } from '@astryxdesign/core/Center'
 import type { StudyWord } from '../lib/words.ts'
 import { getState, reviewWord } from '../lib/store.ts'
 import { speak, ttsSupported } from '../lib/tts.ts'
 import { sfx } from '../lib/sfx.ts'
 import { distractors, shuffle } from '../lib/game.ts'
-import { useImmersive } from '../lib/ui.ts'
-import { RunHead } from './RunHead.tsx'
+import { answer as ans, layout, motion, type as t } from '../ui/styles.ts'
+import { RunHead, Screen } from './Screen.tsx'
 import { Speak } from './Speak.tsx'
 import { Meaning } from './Pos.tsx'
+import { Choice, choiceState, Feedback } from './Choice.tsx'
 
 type Kind = 'en2ko' | 'ko2en' | 'listen'
 type Step =
@@ -69,7 +79,6 @@ export function WordGame({
   /** 지금 단어의 메모 대상 id ('words:<key>', 짝 맞추기 중이면 undefined). 틀린 뒤면 confusing */
   onNote?: (targetId: string | undefined, confusing: boolean) => void
 }) {
-  useImmersive()
   const [steps, setSteps] = useState(() => build(words, pool, isNew))
   const [pos, setPos] = useState(0)
   const [picked, setPicked] = useState<number | null>(null)
@@ -137,65 +146,79 @@ export function WordGame({
 
   if (!step) return null
   const progress = (pos + (picked !== null ? 1 : 0)) / steps.length
+  const ok = step.t === 'q' && picked !== null && step.choices[picked] === step.w
 
   return (
-    <div className="game">
-      <RunHead
-        exitHref={exitHref}
-        progress={progress}
-        combo={combo}
-        onNote={
-          onNote &&
-          (() => onNote(step.t === 'match' ? undefined : `words:${step.w.key}`, step.t === 'q' && picked !== null && step.choices[picked] !== step.w))
-        }
-      />
-      <div className="game-body" key={pos}>
-        {step.t === 'intro' && <Intro w={step.w} onNext={next} />}
+    <Screen
+      header={
+        <RunHead
+          exitHref={exitHref}
+          progress={progress}
+          combo={combo}
+          onNote={onNote && (() => onNote(step.t === 'match' ? undefined : `words:${step.w.key}`, step.t === 'q' && picked !== null && !ok))}
+        />
+      }
+      footer={
+        step.t === 'intro' ? (
+          <Button label="기억했어요" variant="primary" size="lg" width="100%" endContent={<Icon icon={ArrowRight} />} onClick={next} />
+        ) : step.t === 'q' && picked !== null ? (
+          <WordFeedback w={step.w} ok={ok} onNext={next} />
+        ) : null
+      }
+    >
+      <VStack gap={5} key={pos} xstyle={motion.rise}>
+        {step.t === 'intro' && <Intro w={step.w} />}
         {step.t === 'q' && <Question step={step} picked={picked} onPick={answer} />}
         {step.t === 'match' && <Match ws={step.ws} onDone={next} />}
-      </div>
-      {step.t === 'q' && picked !== null && <Feedback step={step} ok={step.choices[picked] === step.w} onNext={next} />}
-    </div>
+      </VStack>
+    </Screen>
   )
 }
 
-function Intro({ w, onNext }: { w: StudyWord; onNext: () => void }) {
+/** 큰 영어 단어 + 발음 */
+export function BigWord({ en }: { en: string }) {
+  return (
+    <HStack gap={2} vAlign="center" hAlign="center" wrap="wrap">
+      <Text type="inherit" xstyle={[t.enBig, t.center]}>
+        {en}
+      </Text>
+      <Speak text={en} size="lg" />
+    </HStack>
+  )
+}
+
+function Intro({ w }: { w: StudyWord }) {
   return (
     <>
-      <p className="game-prompt">
-        <span className="tag-new">새 단어</span>
-      </p>
-      <div className="intro-card">
-        <span className="ic-group">{w.group}</span>
-        <div className="ic-word">
-          <span className="en-serif">{w.en}</span>
-          <Speak text={w.en} />
-        </div>
-        <p className="ic-ko">
-          <mark>
+      <HStack>
+        <Token color="blue" label="새 단어" />
+      </HStack>
+      <Card padding={6}>
+        <VStack gap={4} hAlign="center">
+          <Token label={w.group} size="sm" />
+          <BigWord en={w.en} />
+          <Text type="large" weight="semibold" justify="center" xstyle={[layout.highlight, t.keepAll]}>
             <Meaning ko={w.ko} pos={w.pos} />
-          </mark>
-        </p>
-        {w.ex && (
-          <div className="ic-ex">
-            <Speak text={w.ex.en} />
-            <p>
-              <span className="en-serif">{w.ex.en}</span>
-              <span className="muted">{w.ex.ko}</span>
-            </p>
-          </div>
-        )}
-        {w.tip && (
-          <p className="ic-tip">
-            <Lightbulb size={15} /> {w.tip}
-          </p>
-        )}
-      </div>
-      <div className="game-foot">
-        <button type="button" className="btn primary block big" onClick={onNext}>
-          기억했어요 <ArrowRight size={19} />
-        </button>
-      </div>
+          </Text>
+          {w.ex && (
+            <HStack gap={1} vAlign="start">
+              <Speak text={w.ex.en} size="sm" />
+              <VStack gap={0.5}>
+                <Text type="body" xstyle={t.en}>
+                  {w.ex.en}
+                </Text>
+                <Text type="supporting">{w.ex.ko}</Text>
+              </VStack>
+            </HStack>
+          )}
+          {w.tip && (
+            <HStack gap={1} vAlign="center">
+              <Icon icon={Lightbulb} size="sm" color="warning" />
+              <Text type="supporting">{w.tip}</Text>
+            </HStack>
+          )}
+        </VStack>
+      </Card>
     </>
   )
 }
@@ -205,70 +228,68 @@ function Question({ step, picked, onPick }: { step: Extract<Step, { t: 'q' }>; p
   const answered = picked !== null
   return (
     <>
-      <p className="game-prompt">
-        {step.retry && <span className="tag-retry">한 번 더</span>}
-        {kind === 'en2ko' ? '이 단어의 뜻은?' : kind === 'ko2en' ? '영어로 하면?' : '들리는 단어를 고르세요'}
-      </p>
-      <div className="q-stage">
-        {kind === 'en2ko' && (
-          <div className="q-word">
-            <span className="en-serif">{w.en}</span>
-            <Speak text={w.en} />
-          </div>
+      <HStack gap={2} vAlign="center">
+        {step.retry && <Token color="orange" label="한 번 더" />}
+        <Heading level={2}>{kind === 'en2ko' ? '이 단어의 뜻은?' : kind === 'ko2en' ? '영어로 하면?' : '들리는 단어를 고르세요'}</Heading>
+      </HStack>
+      <Center paddingBlock={4}>
+        {kind === 'en2ko' && <BigWord en={w.en} />}
+        {kind === 'ko2en' && (
+          <Heading level={1} type="display-3" justify="center" xstyle={t.keepAll}>
+            {w.ko}
+          </Heading>
         )}
-        {kind === 'ko2en' && <div className="q-word ko">{w.ko}</div>}
         {kind === 'listen' && (
-          <button type="button" className="listen-btn" onClick={() => speak(w.en)} aria-label="다시 듣기">
-            <Volume2 size={40} strokeWidth={1.8} />
-            <span>
-              <Ear size={14} /> 한 번 더 듣기
-            </span>
-          </button>
+          <VStack gap={2} hAlign="center">
+            <Button label="다시 듣기" variant="secondary" size="lg" icon={<Icon icon={Volume2} size="lg" />} onClick={() => speak(w.en)} />
+            <HStack gap={1} vAlign="center">
+              <Icon icon={Ear} size="sm" color="secondary" />
+              <Text type="supporting">잘 듣고 골라요</Text>
+            </HStack>
+          </VStack>
         )}
-      </div>
-      <div className={`choices ${kind === 'en2ko' ? 'ko' : 'en'}`}>
-        {choices.map((c, i) => {
-          const cls = !answered ? '' : c === w ? 'right' : i === picked ? 'wrong' : 'dim'
-          return (
-            <button key={c.key} type="button" className={`choice ${cls}`} onClick={() => onPick(i)} disabled={answered && c !== w && i !== picked}>
-              <span className="choice-n">{i + 1}</span>
-              <span className={kind === 'en2ko' ? '' : 'en-serif'}>{kind === 'en2ko' ? c.ko : c.en}</span>
-              {answered && c === w && <Check className="mark" size={20} strokeWidth={2.6} />}
-              {answered && i === picked && c !== w && <X className="mark" size={20} strokeWidth={2.6} />}
-            </button>
-          )
-        })}
-      </div>
+      </Center>
+      <VStack gap={2}>
+        {choices.map((c, i) => (
+          <Choice key={c.key} mark={`${i + 1}`} label={kind === 'en2ko' ? c.ko : c.en} state={choiceState(answered, c === w, i === picked)} onPick={() => onPick(i)}>
+            <Text type="large" weight="medium" xstyle={kind === 'en2ko' ? t.keepAll : t.en}>
+              {kind === 'en2ko' ? c.ko : c.en}
+            </Text>
+          </Choice>
+        ))}
+      </VStack>
     </>
   )
 }
 
-function Feedback({ step, ok, onNext }: { step: Extract<Step, { t: 'q' }>; ok: boolean; onNext: () => void }) {
-  const { w } = step
+/** 단어 문제 답한 뒤: 정답 · 예문 */
+export function WordFeedback({ w, ok, skipped, onNext }: { w: StudyWord; ok: boolean; skipped?: boolean; onNext: () => void }) {
   return (
-    <div className={`feedback ${ok ? 'ok' : 'no'}`} role="status">
-      <div className="fb-row">
-        <span className="fb-stamp">{ok ? <Check size={20} strokeWidth={3} /> : <X size={20} strokeWidth={3} />}</span>
-        <div className="fb-text">
-          <b>{ok ? '맞았어요' : '정답은'}</b>
-          {!ok && (
-            <span>
-              <span className="en-serif">{w.en}</span> = <Meaning ko={w.ko} pos={w.pos} />
-            </span>
+    <Feedback
+      ok={ok}
+      title={ok ? '맞았어요' : skipped ? '괜찮아요, 정답은' : '정답은'}
+      onNext={onNext}
+    >
+      {!ok && (
+        <VStack gap={1}>
+          <HStack gap={2} vAlign="center" wrap="wrap">
+            <Text type="large" weight="semibold" xstyle={t.en}>
+              {w.en}
+            </Text>
+            <Speak text={w.en} size="sm" />
+            <Meaning ko={w.ko} pos={w.pos} />
+          </HStack>
+          {w.ex && (
+            <VStack gap={0.5}>
+              <Text type="body" xstyle={t.en}>
+                {w.ex.en}
+              </Text>
+              <Text type="supporting">{w.ex.ko}</Text>
+            </VStack>
           )}
-        </div>
-        {!ok && <Speak text={w.en} />}
-      </div>
-      {!ok && w.ex && (
-        <p className="fb-ex">
-          <span className="en-serif">{w.ex.en}</span>
-          <span>{w.ex.ko}</span>
-        </p>
+        </VStack>
       )}
-      <button type="button" className={`btn block big ${ok ? 'good' : 'primary'}`} onClick={onNext}>
-        계속 <ArrowRight size={19} />
-      </button>
-    </div>
+    </Feedback>
   )
 }
 
@@ -299,37 +320,35 @@ function Match({ ws, onDone }: { ws: StudyWord[]; onDone: () => void }) {
     setR(null)
   }, [l, r])
 
-  const cls = (w: StudyWord, side: 0 | 1) =>
-    (side ? doneR : doneL).has(w.key) ? 'gone' : (side ? r : l) === w ? 'sel' : bad?.[side] === w.key ? 'shake' : ''
+  const tile = (w: StudyWord, side: 0 | 1) => {
+    const done = (side ? doneR : doneL).has(w.key)
+    const sel = (side ? r : l) === w
+    const shake = bad?.[side] === w.key
+    return (
+      <Button
+        key={w.key}
+        label={side ? w.ko : w.en}
+        variant="secondary"
+        size="lg"
+        width="100%"
+        isDisabled={done}
+        onClick={() => {
+          if (!side) speak(w.en)
+          if (side) setR(r === w ? null : w)
+          else setL(l === w ? null : w)
+        }}
+        xstyle={[!side && t.en, sel && ans.selected, shake && [ans.wrong, motion.shake], done && ans.gone]}
+      />
+    )
+  }
 
   return (
     <>
-      <p className="game-prompt">짝을 맞춰 보세요</p>
-      <div className="match">
-        <div className="match-col">
-          {left.map((w) => (
-            <button
-              key={w.key}
-              type="button"
-              className={`tile en-serif ${cls(w, 0)}`}
-              disabled={doneL.has(w.key)}
-              onClick={() => {
-                speak(w.en)
-                setL(l === w ? null : w)
-              }}
-            >
-              {w.en}
-            </button>
-          ))}
-        </div>
-        <div className="match-col">
-          {right.map((w) => (
-            <button key={w.key} type="button" className={`tile ${cls(w, 1)}`} disabled={doneR.has(w.key)} onClick={() => setR(r === w ? null : w)}>
-              {w.ko}
-            </button>
-          ))}
-        </div>
-      </div>
+      <Heading level={2}>짝을 맞춰 보세요</Heading>
+      <Grid columns={2} gap={2}>
+        <VStack gap={2}>{left.map((w) => tile(w, 0))}</VStack>
+        <VStack gap={2}>{right.map((w) => tile(w, 1))}</VStack>
+      </Grid>
     </>
   )
 }

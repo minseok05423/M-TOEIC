@@ -1,13 +1,25 @@
 import { useState } from 'react'
 import { ArrowLeft, ArrowRight, X } from 'lucide-react'
+import { LayoutHeader } from '@astryxdesign/core/Layout'
+import { VStack } from '@astryxdesign/core/VStack'
+import { HStack } from '@astryxdesign/core/HStack'
+import { StackItem } from '@astryxdesign/core/Stack'
+import { Heading, Text } from '@astryxdesign/core/Text'
+import { Button } from '@astryxdesign/core/Button'
+import { IconButton } from '@astryxdesign/core/IconButton'
+import { Icon } from '@astryxdesign/core/Icon'
+import { ProgressBar } from '@astryxdesign/core/ProgressBar'
+import { Card } from '@astryxdesign/core/Card'
+import { Table, TableBody, TableCell, TableHeader, TableHeaderCell, TableRow } from '@astryxdesign/core/Table'
 import type { Section } from '../content/types.ts'
-import { useImmersive } from '../lib/ui.ts'
+import { scrollToTop } from '../lib/ui.ts'
 import { sfx } from '../lib/sfx.ts'
+import { motion, type as t } from '../ui/styles.ts'
 import { RichText } from './RichText.tsx'
-import { NoteButton } from './RunHead.tsx'
+import { NoteButton, Screen } from './Screen.tsx'
 import { Speak } from './Speak.tsx'
 
-/** 설명을 한 장씩 넘겨 보기 (위쪽 칸 = 몇 번째 장인지) */
+/** 설명을 한 장씩 넘겨 보기 */
 export function ConceptPlayer({
   sections,
   exitHref,
@@ -20,93 +32,98 @@ export function ConceptPlayer({
   /** 지금 장의 메모 대상 id ('learn:s<번호>') */
   onNote?: (targetId: string) => void
 }) {
-  useImmersive()
   const [i, setI] = useState(0)
   const s = sections[i]
   const last = i === sections.length - 1
   const go = (n: number) => {
     setI(n)
-    window.scrollTo(0, 0)
+    scrollToTop()
   }
 
   return (
-    <div className="game concept">
-      <div className="run-head">
-        <a className="run-exit" href={exitHref} aria-label="그만하기">
-          <X size={24} strokeWidth={2.4} />
-        </a>
-        <div className="segs">
-          {sections.map((_, j) => (
-            <button key={j} type="button" className={j <= i ? 'on' : ''} onClick={() => go(j)} aria-label={`${j + 1}번째 장`} />
-          ))}
-        </div>
-        <span className="run-count">
-          {i + 1}/{sections.length}
-        </span>
-        {onNote && <NoteButton onClick={() => onNote(`learn:s${i}`)} />}
-      </div>
-
-      <article className="page-card" key={i}>
-        <p className="pc-num">
-          <span>{String(i + 1).padStart(2, '0')}</span>
-        </p>
-        <h2 className="pc-title">{s.heading}</h2>
-        <RichText text={s.body} />
-        {s.table && (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
+    <Screen
+      header={
+        <LayoutHeader padding={2}>
+          <HStack gap={2} vAlign="center">
+            <IconButton label="그만하기" variant="ghost" size="lg" href={exitHref} icon={<Icon icon={X} size="lg" />} />
+            <StackItem size="fill">
+              <ProgressBar label="읽은 장" isLabelHidden value={i + 1} max={sections.length} />
+            </StackItem>
+            <Text type="label" color="secondary" hasTabularNumbers>
+              {i + 1}/{sections.length}
+            </Text>
+            {onNote && <NoteButton onClick={() => onNote(`learn:s${i}`)} />}
+          </HStack>
+        </LayoutHeader>
+      }
+      footer={
+        <HStack gap={2}>
+          {i > 0 && <IconButton label="이전" variant="secondary" size="lg" icon={<Icon icon={ArrowLeft} />} onClick={() => go(i - 1)} />}
+          <StackItem size="fill">
+            <Button
+              label={last ? '다 읽었어요' : '다음 장'}
+              variant="primary"
+              size="lg"
+              width="100%"
+              endContent={<Icon icon={ArrowRight} />}
+              onClick={() => {
+                if (last) {
+                  sfx.done()
+                  onDone()
+                } else {
+                  sfx.pop()
+                  go(i + 1)
+                }
+              }}
+            />
+          </StackItem>
+        </HStack>
+      }
+    >
+      <Card key={i} xstyle={motion.rise}>
+        <VStack gap={4}>
+          <VStack gap={1}>
+            <Text type="label" color="accent" hasTabularNumbers>
+              {String(i + 1).padStart(2, '0')}
+            </Text>
+            <Heading level={2} xstyle={t.keepAll}>
+              {s.heading}
+            </Heading>
+          </VStack>
+          <RichText text={s.body} />
+          {s.table && (
+            <Table density="compact" dividers="rows" textOverflow="wrap">
+              <TableHeader>
+                <TableRow>
                   {s.table[0].map((c, j) => (
-                    <th key={j}>{c}</th>
+                    <TableHeaderCell key={j}>{c}</TableHeaderCell>
                   ))}
-                </tr>
-              </thead>
-              <tbody>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {s.table.slice(1).map((row, r) => (
-                  <tr key={r}>
+                  <TableRow key={r}>
                     {row.map((c, j) => (
-                      <td key={j}>{c}</td>
+                      <TableCell key={j}>{c}</TableCell>
                     ))}
-                  </tr>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        {s.examples?.map((ex, j) => (
-          <div key={j} className="example">
-            <Speak text={ex.en} />
-            <div>
-              <p className="ex-en en-serif">{ex.en}</p>
-              <p className="ex-ko">{ex.ko}</p>
-            </div>
-          </div>
-        ))}
-      </article>
-
-      <div className="game-foot row-gap">
-        {i > 0 && (
-          <button type="button" className="btn square" onClick={() => go(i - 1)} aria-label="이전">
-            <ArrowLeft size={20} />
-          </button>
-        )}
-        <button
-          type="button"
-          className="btn primary big grow"
-          onClick={() => {
-            if (last) {
-              sfx.done()
-              onDone()
-            } else {
-              sfx.pop()
-              go(i + 1)
-            }
-          }}
-        >
-          {last ? '다 읽었어요' : '다음 장'} <ArrowRight size={19} />
-        </button>
-      </div>
-    </div>
+              </TableBody>
+            </Table>
+          )}
+          {s.examples?.map((ex, j) => (
+            <HStack key={j} gap={1} vAlign="start">
+              <Speak text={ex.en} />
+              <VStack gap={0.5}>
+                <Text type="large" xstyle={t.en}>
+                  {ex.en}
+                </Text>
+                <Text type="supporting">{ex.ko}</Text>
+              </VStack>
+            </HStack>
+          ))}
+        </VStack>
+      </Card>
+    </Screen>
   )
 }

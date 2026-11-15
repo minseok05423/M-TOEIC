@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react'
+import { Button } from '@astryxdesign/core/Button'
+import { EmptyState } from '@astryxdesign/core/EmptyState'
 import { customWords, allWords, type StudyWord } from '../lib/words.ts'
 import { getState } from '../lib/store.ts'
 import { href } from '../lib/router.ts'
 import { shuffle, stars } from '../lib/game.ts'
-import { TopBar } from '../components/TopBar.tsx'
+import { AppBar, Screen } from '../components/Screen.tsx'
 import { WordGame, type GameResult } from '../components/WordGame.tsx'
 import { GameDone } from '../components/GameDone.tsx'
 
@@ -20,20 +22,21 @@ export function Cards({ deck }: { deck: string }) {
   const session = useMemo<StudyWord[]>(() => {
     const srs = getState().progress.srs
     // 아직 한 번도 안 푼 단어 → 약한 단어 순
-    return [...all].sort((a, b) => (srs[a.key]?.reps ?? 0) - (srs[b.key]?.reps ?? 0) || (srs[a.key]?.box ?? 0) - (srs[b.key]?.box ?? 0) || Math.random() - 0.5).slice(0, PER_ROUND)
+    return [...all]
+      .sort((a, b) => (srs[a.key]?.reps ?? 0) - (srs[b.key]?.reps ?? 0) || (srs[a.key]?.box ?? 0) - (srs[b.key]?.box ?? 0) || Math.random() - 0.5)
+      .slice(0, PER_ROUND)
   }, [all, round])
 
   if (!all.length)
     return (
-      <div className="page">
-        <TopBar back={back} title={deck} />
-        <p className="empty">단어가 없어요.</p>
-      </div>
+      <Screen header={<AppBar back={back} title={deck} />}>
+        <EmptyState title="단어가 없어요" actions={<Button label="단어장으로" href={back} />} />
+      </Screen>
     )
 
   if (result)
     return (
-      <div className="page">
+      <Screen>
         <GameDone
           stars={stars(result.right, result.right + result.wrong)}
           title={`${deck} · 한 판 끝`}
@@ -43,31 +46,20 @@ export function Cards({ deck }: { deck: string }) {
             { label: '최고 연속', value: result.bestCombo },
           ]}
         >
-          <button
-            type="button"
-            className="btn primary block big"
+          <Button
+            label="한 판 더"
+            variant="primary"
+            size="lg"
+            width="100%"
             onClick={() => {
               setResult(null)
               setRound(round + 1)
             }}
-          >
-            한 판 더
-          </button>
-          <a className="btn block big" href={back}>
-            단어장으로
-          </a>
+          />
+          <Button label="단어장으로" variant="secondary" size="lg" width="100%" href={back} />
         </GameDone>
-      </div>
+      </Screen>
     )
 
-  return (
-    <WordGame
-      key={round}
-      words={shuffle(session)}
-      pool={pool}
-      isNew={(w) => !snap[w.key] || snap[w.key].reps === 0}
-      exitHref={back}
-      onDone={setResult}
-    />
-  )
+  return <WordGame key={round} words={shuffle(session)} pool={pool} isNew={(w) => !snap[w.key] || snap[w.key].reps === 0} exitHref={back} onDone={setResult} />
 }
