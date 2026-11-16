@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowRight, Bone, BookText, Check, ChevronDown, ChevronUp, Languages, NotebookText, RotateCcw, Scissors, Star } from 'lucide-react'
 import { findLesson } from '../lib/content.ts'
-import { getState, lessonKey, markLesson, recordQuiz, useStore, type LessonProgress } from '../lib/store.ts'
+import { getState, lessonKey, markLesson, recordQuiz, useStore } from '../lib/store.ts'
 import { href, replace } from '../lib/router.ts'
 import { allWords, lessonWords, type StudyWord } from '../lib/words.ts'
 import { boxLabel, isDue } from '../lib/srs.ts'
@@ -17,6 +17,7 @@ import { GameDone } from '../components/GameDone.tsx'
 import { HideKoSwitch, WordRow } from '../components/WordRow.tsx'
 import { useNoteSheet } from '../components/NoteSheet.tsx'
 import { NoteList } from '../components/NoteList.tsx'
+import { stageList } from '../lib/stages.ts'
 
 interface Props {
   chapterId: string
@@ -72,41 +73,6 @@ function LearnStage({ chapterId, lesson, home }: StageP) {
 }
 
 // ───────── 레슨 첫 화면: 4단계 길 ─────────
-
-interface StageInfo {
-  id: string
-  title: string
-  desc: string
-  meta: string
-  done: boolean
-  stars?: number
-}
-
-export function stageList(lesson: LessonT, lp: LessonProgress | undefined, started: number): StageInfo[] {
-  const out: StageInfo[] = [
-    { id: 'learn', title: '개념 익히기', desc: '한 장씩 넘기며 읽어요', meta: `${lesson.sections.length}장`, done: !!lp?.read },
-  ]
-  if (lesson.words.length)
-    out.push({
-      id: 'words',
-      title: '단어 게임',
-      desc: '뜻 고르기 · 듣기 · 짝 맞추기',
-      meta: `${started}/${lesson.words.length}단어`,
-      done: !!lp?.cards || started === lesson.words.length,
-    })
-  out.push(
-    { id: 'sentences', title: '뼈대 찾기', desc: '진짜 동사와 주어를 직접 찾아요', meta: `${lesson.sentences.length}문장`, done: !!lp?.sentences },
-    {
-      id: 'quiz',
-      title: '실전 퀴즈',
-      desc: '토익처럼 빈칸 채우기',
-      meta: lp?.quizTotal ? `최고 ${lp.quizBest}/${lp.quizTotal}` : `${lesson.quiz.length}문제`,
-      done: !!lp?.quizTotal,
-      stars: lp?.quizTotal ? stars(lp.quizBest ?? 0, lp.quizTotal) : undefined,
-    },
-  )
-  return out
-}
 
 export function useLessonStages(chapterId: string, lesson: LessonT) {
   const lp = useStore((s) => s.progress.lessons[lessonKey(chapterId, lesson.id)])

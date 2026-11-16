@@ -178,3 +178,41 @@ exception when duplicate_object then null;
 end $$;
 
 notify pgrst, 'reload schema';
+
+-- ═════════ 선생님 계정 (앱의 학생 현황 화면) ═════════
+
+-- 11) 선생님 = app_metadata.role 이 'teacher' 인 계정. app_metadata 는 비밀 키로만 바꿀 수 있어서 학생이 스스로 선생님이 될 수 없음
+--     계정 지정: npm run teacher -- role <이메일> teacher   (바꾼 뒤 앱에서 로그아웃 → 로그인해야 반영)
+create or replace function public.is_teacher() returns boolean
+language sql stable set search_path = '' as $$
+  select coalesce((auth.jwt() -> 'app_metadata' ->> 'role') = 'teacher', false)
+$$;
+revoke all on function public.is_teacher() from public, anon;
+grant execute on function public.is_teacher() to authenticated;
+
+-- 선생님은 모든 학생의 기록을 읽기만 함 (쓰기는 지금처럼 npm run teacher)
+drop policy if exists "teacher reads progress" on public.progress;
+create policy "teacher reads progress" on public.progress for select to authenticated using ((select public.is_teacher()));
+drop policy if exists "teacher reads words" on public.custom_words;
+create policy "teacher reads words" on public.custom_words for select to authenticated using ((select public.is_teacher()));
+drop policy if exists "teacher reads notes" on public.lesson_notes;
+create policy "teacher reads notes" on public.lesson_notes for select to authenticated using ((select public.is_teacher()));
+drop policy if exists "teacher reads chapters" on public.user_chapters;
+create policy "teacher reads chapters" on public.user_chapters for select to authenticated using ((select public.is_teacher()));
+drop policy if exists "teacher reads tests" on public.word_tests;
+create policy "teacher reads tests" on public.word_tests for select to authenticated using ((select public.is_teacher()));
+
+-- 학생 목록 (auth.users 는 앱에서 직접 못 읽어서). 선생님이 아니면 빈 목록
+create or replace function public.teacher_students()
+returns table (id uuid, email text, created_at timestamptz, last_sign_in_at timestamptz)
+language sql stable security definer set search_path = '' as $$
+  select u.id, u.email::text, u.created_at, u.last_sign_in_at
+  from auth.users u
+  where public.is_teacher()
+    and coalesce(u.raw_app_meta_data ->> 'role', '') not in ('teacher', 'supervisor')
+  order by u.created_at
+$$;
+revoke all on function public.teacher_students() from public, anon;
+grant execute on function public.teacher_students() to authenticated;
+
+notify pgrst, 'reload schema';

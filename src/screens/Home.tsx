@@ -7,7 +7,7 @@ import { addDays, formatDate, streak, today } from '../lib/date.ts'
 import { href } from '../lib/router.ts'
 import { lessonWords } from '../lib/words.ts'
 import { stars } from '../lib/game.ts'
-import { stageList } from './Lesson.tsx'
+import { stageList } from '../lib/stages.ts'
 import { LogoMark } from '../components/Logo.tsx'
 
 const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토']

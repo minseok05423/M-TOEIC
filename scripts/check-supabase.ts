@@ -35,8 +35,8 @@ try {
     const s = (await r.json()) as { disable_signup?: boolean; external?: { email?: boolean } }
     if (!s.external?.email) bad('이메일 로그인이 꺼져 있어요', 'Authentication → Sign In / Providers → Email 을 켜세요.')
     if (!s.disable_signup)
-      note('누구나 회원가입할 수 있는 상태예요 (데이터는 RLS 로 보호되지만)', 'Authentication → Sign In / Providers → "Allow new users to sign up" 을 끄세요.')
-    else ok('회원가입 막힘 (만든 계정만 로그인 가능)')
+      ok('회원가입 열림 (앱의 회원가입 화면 사용 가능. 인증 메일 링크는 Site URL / Redirect URLs 에 앱 주소가 있어야 해요)')
+    else note('회원가입 막힘: 앱의 회원가입 화면이 동작하지 않아요', 'Authentication → Sign In / Providers → "Allow new users to sign up" 을 켜세요 (만든 계정만 쓰려면 그대로 두세요).')
   }
 } catch (e) {
   bad(`접속 실패: ${(e as Error).message}`, 'VITE_SUPABASE_URL 이 맞는지, 인터넷이 되는지 확인하세요.')

@@ -199,6 +199,11 @@ function bumpDay(p: Progress): Progress['days'] {
   return { ...p.days, [d]: (p.days[d] ?? 0) + 1 }
 }
 
+/** 레슨·단어 말고 다른 연습(Part 1 듣기)도 공부한 날로 남기기 (선생님 화면 · 연속 학습일) */
+export function markStudied() {
+  setState((s) => ({ ...s, progress: { ...s.progress, days: bumpDay(s.progress) } }))
+}
+
 export function markLesson(chapterId: string, lessonId: string, patch: Partial<Omit<LessonProgress, 'u'>>) {
   const key = lessonKey(chapterId, lessonId)
   setState((s) => {

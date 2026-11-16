@@ -7,7 +7,7 @@ A private TOEIC study PWA for one student. Every **chapter** is built from a cla
 3. **뼈대 찾기**: the student taps the main verb, then the subject, of each sentence. A wrong tap explains why (e.g. "that verb is inside a clause"). Then the full colour-coded analysis is shown.
 4. **실전 퀴즈**: TOEIC-style questions with a streak counter, stars and per-question explanations.
 
-The word list and the colour-coded sentence notes stay available as reference pages. Daily review and deck practice use the same word game.
+The word list and the colour-coded sentence notes stay available as reference pages. Daily review and deck practice use the same word game. The 복습 tab also has a **TOEIC Part 1 listening drill** (`#/part1`, content in `src/content/part1.ts`): the student reads a scene described in Korean, hears four sentences in the phone's voice, and picks the one that fits; the sentences are shown only after answering.
 The student can also add their own words, which go into spaced-repetition review alongside the lesson words.
 
 - React 19 + Vite 8 + TypeScript. Routing is by URL hash, so the phone's back button works.
@@ -21,6 +21,7 @@ The student can also add their own words, which go into spaced-repetition review
 npm install
 npm run dev            # http://localhost:5173 (on the same Wi-Fi, open the printed Network URL on a phone)
 npm run check-content  # validate content only
+npm test               # unit tests in tests/ (also run by npm run build)
 npm run build          # content check → typecheck → build to dist/
 ```
 
@@ -30,7 +31,7 @@ With no `.env`, the app runs in **this-device-only mode**: no login, data stays 
 
 1. Create a project at [supabase.com](https://supabase.com) (the free tier is plenty).
 2. In **SQL Editor**, paste all of [`supabase/schema.sql`](supabase/schema.sql) and run it.
-3. In **Authentication → Sign In / Providers**, turn off **Allow new users to sign up** so only the account you create can log in.
+3. Students can make their own account on the app's **회원가입** screen (`#/signup`), which needs **Allow new users to sign up** on (Authentication → Sign In / Providers). With **Confirm email** on, they get a link by email first. Set **Authentication → URL Configuration → Site URL** to the app's address (e.g. `https://m-toeic.vercel.app`) and add it, plus `http://localhost:5173` for development, under **Redirect URLs**, or the link opens the wrong page. Supabase's built-in mailer sends only a few emails an hour; add your own SMTP under **Authentication → Emails** if many students sign up at once. To allow only accounts you create, turn sign-ups off; the screen then shows Supabase's error.
 4. In **Authentication → Users → Add user → Create new user**, enter the student's email and password and check **Auto Confirm User**.
 5. From **Connect → App Frameworks → React (Vite)**, copy the two values into `.env.local`:
    ```
@@ -62,7 +63,7 @@ The student memorises about 20 words a day and types them into **단어장** (on
 - **New words:** every word added on the most recent day that has words (up to 30). If that day has fewer than 20, older words that have never been tested fill it up to 20.
 - **Review words:** 10, or more if the new words are few, so the test reaches 30. In this order: words missed or answered "모르겠어요" in the last test that had them; words marked ★ important; words the student keeps missing in review; then random older words, least recently tested first. If there are not enough of the student's own words, studied lesson words fill in.
 
-Each question shows the English word with four meanings to pick from, plus a **모르겠어요** button so the student doesn't guess. Each word is asked once, and every answer also updates spaced repetition. Only finished tests are saved. They sync to the `word_tests` table, and the student can send and read them but not change them.
+Each question shows the English word with four meanings to pick from, plus a **모르겠어요** button so the student doesn't guess. Wrong options are planned across the whole test (`src/lib/game.ts`): the least-used come first so the same ones don't repeat, they have the same shape as the answer (verb meanings for a verb), and no option shares a meaning with the answer. A word with meanings for different parts of speech (`shade`: 그늘지게 하다 / 그늘) is asked one meaning at a time. A word missed in two or more tests is asked the other way round: the meaning is shown and the student types the English (optional parts in brackets and `~ing`/`A`/`B` placeholders may be left out; one typo in a longer word counts, and the spelling is shown). Each word is asked once, and every answer also updates spaced repetition. Only finished tests are saved. They sync to the `word_tests` table, and the student can send and read them but not change them.
 
 ★ important can be set by the student (word list or word form) or by you (`npm run teacher -- star <word>`).
 
@@ -92,9 +93,21 @@ npm run teacher -- star postpone "in advance" [--off]   # mark the student's wor
 npm run teacher -- words [--deck 1일차]                  # the student's word book by deck; flags words with no 품사
 npm run teacher -- words add day3.txt --deck 3일차 [--date 2026-11-14]   # add words (line: english | 품사 | 뜻)
 npm run teacher -- words pos "place=동사 / 명사"        # fix a word's 품사
+npm run teacher -- words dupes [--apply]                # the same word added twice: keep the copy with the most review history, take the clean meaning + 품사, mark the rest deleted (plan only without --apply)
+npm run teacher -- role <email> teacher|student         # make an account a teacher (see below)
 ```
 
 The script needs `SUPABASE_SECRET_KEY=sb_secret_...` in `.env.local` (Project Settings → API Keys → Secret keys). The key bypasses Row Level Security, so it stays on your machine; the script never prints it. `push` runs the same checks as the build and uploads nothing if one fails. The app checks each personal chapter again and skips any broken one. No redeploy is needed: the student gets new chapters on the next sync.
+
+## Teacher account
+
+An account whose `app_metadata.role` is `teacher` sees **학생 현황** instead of the student screens: every student, the ones falling behind first, and a page per student with what is behind and why, the last 14 days (study, word test score, words added), every lesson's stages, recent tests, words missed twice or more, and unanswered notes. A student is **behind** when a lesson isn't finished 2 days after its class, they haven't studied or taken a word test for 2 days, or more than 30 review words are overdue (`src/lib/analytics.ts`, shown on the screen too).
+
+- Make an account a teacher: `npm run teacher -- role <email> teacher`, then log out and back in in the app. Only the secret key can change `app_metadata`, so a student can't make themselves a teacher.
+- The database lets teachers **read** every student's rows and nothing else (`supabase/schema.sql` part 11, function `teacher_students()` for the student list). Writing (replies, personal chapters, words) still goes through `npm run teacher`.
+- The teacher account doesn't sync its own progress. Students' data shows up when their phone syncs (when the app opens or comes back to the foreground).
+
+Students can sign up themselves on **회원가입** (`#/signup`); see Supabase setup step 3.
 
 ## Deploying to Vercel
 
@@ -118,7 +131,15 @@ scripts/check-content.ts      content validator (runs on every build)
 src/lib/store.ts              local state + actions (progress, review, custom words)
 src/lib/sync.ts               Supabase sync (pull → per-item newest-wins merge → push changes)
 src/lib/srs.ts                Leitner-box spaced repetition (1, 3, 7, 14, 30, 60 days)
-src/lib/wordtest.ts           which words go into the daily word test
-src/screens/                  Home, Lesson, Cards, Review, WordTest, Words, WordForm, BulkAdd, Settings, Login
+src/lib/wordtest.ts           which words go into the daily word test, which ones are typed
+src/lib/game.ts               wrong options for word questions, typed-answer checking
+src/lib/wordline.ts           reading pasted word lines (bulk add)
+src/lib/stages.ts             a lesson's four stages and when each counts as done
+src/lib/analytics.ts          teacher view: is a student up to date (pure, tested)
+src/lib/teacher.ts            teacher role + loading every student's data
+src/screens/Teacher.tsx       학생 현황 list and per-student page
+src/content/part1.ts          Part 1 listening drill items
+tests/                        unit tests (node --test)
+src/screens/                  Home, Lesson, Cards, Review, WordTest, Words, WordForm, BulkAdd, Part1, Teacher, Settings, Login (+ SignUp)
 supabase/schema.sql           tables + row-level security
 ```

@@ -8,6 +8,7 @@
  *   pull <챕터id> [--user 이메일]     서버의 맞춤 챕터를 personal/<챕터id>.ts 로 내려받기 (파일을 잃어버렸을 때)
  *   rm <챕터id> [--user 이메일]       맞춤 챕터 내리기 (학생 화면에서 사라짐. 학습 기록은 남음)
  *   users                             학생 계정과 메모 수
+ *   role <이메일> teacher|student      선생님 계정 지정/해제 (앱에서 학생 현황 화면을 봄. 바꾼 뒤 앱에서 다시 로그인)
  *   progress [--days 14] [--user 이메일]   진도: 공부한 날, 레슨 단계·퀴즈 점수, 넣은 단어 수, 복습 상태, 테스트 요약
  *   tests [--days 7] [--user 이메일]       단어 테스트: 날마다 점수, 틀린 단어, 자주 틀리는 단어
  *   star <영어 단어> [...] [--off]          학생 단어에 ★중요 표시 (다음 테스트 복습 칸에 먼저 나옴)
@@ -16,6 +17,8 @@
  *                                         단어 넣기. 파일 한 줄: 영어 | 품사 | 뜻   (예: shade | 동사 / 명사 | 그늘지게 하다 / 그늘)
  *                                         --date 는 단어 테스트가 "그날 넣은 단어"로 보는 날짜 (기본: 오늘). 이미 있는 영어 단어는 건너뜀
  *   words pos "영어=품사" [...]             품사 고치기 (예: words pos "place=동사 / 명사")
+ *   words dupes [--apply]                  같은 영어 단어가 두 번 이상 있는 것 정리 (기본은 계획만 출력).
+ *                                         복습 기록이 가장 많은 것을 남기고 품사·N일차 묶음을 채운 뒤, 나머지는 삭제 표시 (deleted, 되돌릴 수 있음)
  *
  * .env.local 에 SUPABASE_SECRET_KEY (대시보드 → Project Settings → API Keys → Secret key) 가 있어야 해요.
  * 이 키는 RLS 를 건너뛰는 관리자 키라서 VITE_ 를 붙이면 안 되고(앱에 들어감), 화면에도 출력하지 않아요.
@@ -61,17 +64,24 @@ for (let i = 0; i < rest.length; i++) {
 const flag = (k: string) => (typeof flags.get(k) === 'string' ? (flags.get(k) as string) : undefined)
 
 // ───────── 학생 ─────────
-async function allUsers(): Promise<User[]> {
+/**
+ * 선생님 계정 (app_metadata.role = 'teacher', 예전 이름 'supervisor'). 학생 목록에서 빠짐.
+ * app_metadata 는 비밀 키로만 바꿀 수 있음 → 학생이 스스로 선생님이 될 수 없음 (supabase/schema.sql 11번)
+ */
+const isSupervisor = (u: User) => u.app_metadata?.role === 'teacher' || u.app_metadata?.role === 'supervisor'
+
+/** 학생 계정만 (includeSupervisors 면 관리자도) */
+async function allUsers(includeSupervisors = false): Promise<User[]> {
   const { data, error } = await db.auth.admin.listUsers({ perPage: 1000 })
   if (error) die(`학생 목록을 못 가져옴: ${error.message}`)
-  return data.users
+  return includeSupervisors ? data.users : data.users.filter((u) => !isSupervisor(u))
 }
 
-/** --user 가 없고 학생이 한 명뿐이면 그 학생 */
+/** --user 가 없고 학생이 한 명뿐이면 그 학생 (관리자 계정은 --user 로 이메일을 적었을 때만) */
 async function pickUser(email = flag('user')): Promise<User> {
   const users = await allUsers()
   if (email) {
-    const u = users.find((x) => x.email?.toLowerCase() === email.toLowerCase())
+    const u = (await allUsers(true)).find((x) => x.email?.toLowerCase() === email.toLowerCase())
     if (!u) die(`학생 "${email}" 이 없어요. 있는 계정: ${users.map((x) => x.email).join(', ') || '(없음)'}`)
     return u
   }
@@ -264,11 +274,26 @@ async function users() {
   const list = await allUsers()
   const { data, error } = await db.from('lesson_notes').select('user_id, status')
   if (error) die(error.message)
+  for (const u of await allUsers(true))
+    if (isSupervisor(u)) console.log(`- ${u.email}: 선생님 (${u.app_metadata.role}) · 마지막 로그인 ${u.last_sign_in_at?.slice(0, 10) ?? '없음'}`)
   if (!list.length) return console.log('학생 계정이 없어요 (Authentication → Users → Add user)')
   for (const u of list) {
     const mine = data.filter((n) => n.user_id === u.id)
     console.log(`- ${u.email}: 새 메모 ${mine.filter((n) => n.status === 'new').length} · 반영 ${mine.filter((n) => n.status === 'done').length} · 마지막 로그인 ${u.last_sign_in_at?.slice(0, 10) ?? '없음'}`)
   }
+}
+
+/** role <이메일> teacher|student: 선생님 계정 지정/해제 */
+async function role() {
+  const [email, to] = args
+  if (!email || (to !== 'teacher' && to !== 'student')) die('사용법: role <이메일> teacher|student')
+  const u = (await allUsers(true)).find((x) => x.email?.toLowerCase() === email.toLowerCase())
+  if (!u) die(`계정 "${email}" 이 없어요`)
+  const { role: _old, ...rest } = u.app_metadata ?? {}
+  const app_metadata = to === 'teacher' ? { ...rest, role: 'teacher' } : rest
+  const { error } = await db.auth.admin.updateUserById(u.id, { app_metadata })
+  if (error) die(error.message)
+  console.log(`${u.email}: ${_old ?? '학생'} → ${to === 'teacher' ? '선생님 (teacher)' : '학생'}. 앱에서 로그아웃 후 다시 로그인하면 반영돼요.`)
 }
 
 // ───────── 진도 · 단어 테스트 ─────────
@@ -434,7 +459,8 @@ async function words() {
   const user = await pickUser()
   if (sub === 'add') return wordsAdd(user)
   if (sub === 'pos') return wordsPos(user)
-  if (sub) die(`words 다음에는 add | pos 또는 아무것도 없이 (목록)`)
+  if (sub === 'dupes') return wordsDupes(user)
+  if (sub) die(`words 다음에는 add | pos | dupes 또는 아무것도 없이 (목록)`)
   const list = (await myWords(user.id)).filter((w) => !flag('deck') || w.deck === flag('deck'))
   if (!list.length) return console.log('단어가 없어요.')
   const decks = new Map<string, MyWord[]>()
@@ -484,6 +510,43 @@ async function wordsAdd(user: User) {
   console.log('  학생 앱은 다음에 열 때(또는 설정 → 지금 동기화) 받아요.')
 }
 
+/** 같은 영어 단어 정리. 남길 것: 복습 기록(reps) 많은 것 → 품사 있는 것 → N일차 묶음 → 먼저 넣은 것 */
+async function wordsDupes(user: User) {
+  const apply = !!flags.get('apply')
+  const [list, p] = await Promise.all([myWords(user.id), db.from('progress').select('data').eq('user_id', user.id).maybeSingle()])
+  if (p.error) die(p.error.message)
+  const srs = ((p.data?.data ?? {}) as Partial<Progress>).srs ?? {}
+  const reps = (w: MyWord) => srs[`c:${w.id}`]?.reps ?? 0
+  const dayDeck = (d: string) => /일차$/.test(d)
+  const groups = new Map<string, MyWord[]>()
+  for (const w of list) groups.set(normEn(w.en), [...(groups.get(normEn(w.en)) ?? []), w])
+  const dup = [...groups.values()].filter((g) => g.length > 1)
+  if (!dup.length) return console.log('겹치는 단어가 없어요.')
+  console.log(`# 겹치는 단어 ${dup.length}개 (${dup.reduce((a, g) => a + g.length - 1, 0)}개를 지울 예정)${apply ? '' : '  — 계획만. 적용: --apply'}\n`)
+  for (const g of dup) {
+    const [keep, ...drop] = [...g].sort(
+      (a, b) => reps(b) - reps(a) || Number(!!b.pos) - Number(!!a.pos) || Number(dayDeck(b.deck)) - Number(dayDeck(a.deck)) || a.created_at.localeCompare(b.created_at),
+    )
+    // 뜻·품사는 정리된 쪽(품사 있음 → N일차 묶음)에서 가져옴. 품사는 뜻과 짝이라 둘을 같이 옮겨요
+    const best = [...g].sort((a, b) => Number(!!b.pos) - Number(!!a.pos) || Number(dayDeck(b.deck)) - Number(dayDeck(a.deck)))[0]
+    const deck = dayDeck(keep.deck) ? keep.deck : (drop.find((d) => dayDeck(d.deck))?.deck ?? keep.deck)
+    const fix = {
+      ...(best.pos !== keep.pos ? { pos: best.pos, ko: best.ko } : best.ko !== keep.ko && best.pos ? { ko: best.ko } : {}),
+      ...(deck !== keep.deck ? { deck } : {}),
+    }
+    console.log(`- ${keep.en}: 남김 [${keep.deck}${keep.pos ? ' · ' + keep.pos : ''} · 복습 ${reps(keep)}번] ${keep.ko}${Object.keys(fix).length ? `\n    → ${JSON.stringify(fix)}` : ''}`)
+    for (const d of drop) console.log(`    지움 [${d.deck}${d.pos ? ' · ' + d.pos : ''} · 복습 ${reps(d)}번] ${d.ko}`)
+    if (!apply) continue
+    if (Object.keys(fix).length) {
+      const { error } = await db.from('custom_words').update({ ...fix, updated_at: new Date().toISOString() }).eq('id', keep.id)
+      if (error) die(error.message)
+    }
+    const { error } = await db.from('custom_words').update({ deleted: true, updated_at: new Date().toISOString() }).in('id', drop.map((d) => d.id))
+    if (error) die(error.message)
+  }
+  if (apply) console.log('\n✓ 적용했어요. 학생 앱이 다음에 동기화할 때 반영돼요. 되돌리기: Table Editor 에서 deleted 를 false 로.')
+}
+
 async function wordsPos(user: User) {
   const pairs = args.slice(1).map((a) => {
     const i = a.indexOf('=')
@@ -504,6 +567,6 @@ async function wordsPos(user: User) {
   }
 }
 
-const commands: Record<string, () => Promise<void>> = { notes, push, done, chapters, pull, rm, users, progress, tests, star, words }
+const commands: Record<string, () => Promise<void>> = { notes, push, done, chapters, pull, rm, users, role, progress, tests, star, words }
 const run = commands[cmd ?? ''] ?? (() => die(`명령: ${Object.keys(commands).join(' | ')}  (자세한 건 scripts/teacher.ts 맨 위)`))
 await run()

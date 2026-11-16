@@ -4,6 +4,7 @@ import { getState, resetProgress, setSettings, setState, useStore, type State } 
 import { mergeProgress, mergeWords } from '../lib/merge.ts'
 import { supabase } from '../lib/supabase.ts'
 import { syncNow, useSyncStatus } from '../lib/sync.ts'
+import { isTeacher } from '../lib/teacher.ts'
 import { speak, ttsSupported } from '../lib/tts.ts'
 import { useChapters } from '../lib/content.ts'
 import { today } from '../lib/date.ts'
@@ -61,7 +62,34 @@ export function Settings({ session }: { session: Session | null }) {
       <section className="group">
         <p className="section-label">저장</p>
         <div className="group-card">
-          {!supabase || !session ? (
+          {session && isTeacher(session) ? (
+            <>
+              <div className="row">
+                <span className="row-ico">
+                  <Cloud size={18} />
+                </span>
+                <span className="row-text">
+                  {session.user.email ?? '선생님'}
+                  <span className="sub">선생님 계정 · 학생 기록을 읽기만 해요 (이 계정은 동기화 안 함)</span>
+                </span>
+              </div>
+              <button
+                type="button"
+                className="row"
+                onClick={async () => {
+                  if (confirm('로그아웃할까요? 다시 볼 때는 이메일과 비밀번호로 로그인해요.')) {
+                    await supabase!.auth.signOut()
+                    setSettings({ skipLogin: false })
+                  }
+                }}
+              >
+                <span className="row-ico gray">
+                  <LogOut size={18} />
+                </span>
+                <span className="row-text">로그아웃</span>
+              </button>
+            </>
+          ) : !supabase || !session ? (
             <>
               <div className="row">
                 <span className="row-ico gray">
@@ -196,6 +224,7 @@ export function Settings({ session }: { session: Session | null }) {
         </div>
       </section>
 
+      {!isTeacher(session) && (
       <section className="group">
         <p className="section-label">백업</p>
         <div className="group-card">
@@ -228,6 +257,7 @@ export function Settings({ session }: { session: Session | null }) {
         />
         <p className="group-foot">학습 기록과 내 단어를 파일로 저장하거나 불러와요. 불러오면 지금 기록과 합쳐져요.</p>
       </section>
+      )}
 
       <section className="group">
         <p className="section-label">홈 화면에 추가</p>

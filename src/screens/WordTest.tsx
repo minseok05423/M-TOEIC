@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowRight, Check, ChevronDown, CircleHelp, ClipboardPaste, Plus, X } from 'lucide-react'
 import { newId, reviewWord, saveTest, useStore, type WordTest as Test, type WordTestItem } from '../lib/store.ts'
 import { allWords, lessonWordList, type StudyWord } from '../lib/words.ts'
-import { planTest, WHY_LABEL, type PlannedItem, type Why } from '../lib/wordtest.ts'
-import { distractors, shuffle, stars } from '../lib/game.ts'
+import { planTest, typingKeys, WHY_LABEL, type PlannedItem, type Why } from '../lib/wordtest.ts'
+import { checkTyped, distractorPicker, oneSense, shuffle, stars } from '../lib/game.ts'
 import { formatDate, today } from '../lib/date.ts'
 import { href } from '../lib/router.ts'
 import { speak } from '../lib/tts.ts'
@@ -28,6 +28,7 @@ export function WordTest() {
   const userChapters = useStore((s) => s.userChapters)
   const plan = useMemo(() => planTest(words, srs, tests, lessonWordList()), [words, srs, tests, userChapters])
   const pool = useMemo(() => [...allWords(words).values()], [words, userChapters])
+  const typing = useMemo(() => typingKeys(tests), [tests])
   const history = useMemo(() => Object.values(tests).sort((a, b) => b.finishedAt - a.finishedAt), [tests])
   const [run, setRun] = useState<{ items: PlannedItem[]; n: number } | null>(null)
   const [result, setResult] = useState<Test | null>(null)
@@ -38,6 +39,7 @@ export function WordTest() {
         key={run.n}
         items={run.items}
         pool={pool}
+        typing={typing}
         onDone={(t) => {
           saveTest(t)
           setResult(t)
@@ -72,6 +74,7 @@ export function WordTest() {
 
   const todays = history.filter((t) => t.day === today())
   const notToday = plan.latestDay !== today()
+  const typeCount = plan.items.filter((x) => typing.has(x.w.key)).length
   const reasons = (Object.keys(plan.why) as Why[]).filter((k) => plan.why[k])
 
   return (
@@ -117,7 +120,10 @@ export function WordTest() {
           <button type="button" className="btn primary block big" onClick={() => setRun({ items: shuffle(plan.items), n: (run?.n ?? 0) + 1 })}>
             시작 <ArrowRight size={19} />
           </button>
-          <p className="muted small">뜻을 고르는 4지선다예요. 모르면 찍지 말고 "모르겠어요"를 눌러요.</p>
+          <p className="muted small">
+            뜻을 고르는 4지선다예요. 모르면 찍지 말고 "모르겠어요"를 눌러요.
+            {typeCount > 0 && ` 두 번 이상 틀린 단어 ${typeCount}개는 영어로 직접 써요.`}
+          </p>
         </div>
       ) : (
         <div className="review-card calm">
@@ -179,31 +185,50 @@ function WrongList({ items }: { items: WordTestItem[] }) {
   )
 }
 
-type Q = PlannedItem & { choices: StudyWord[] }
+/** shown = 이 문제에서 묻는 뜻 (뜻이 여럿이면 하나, lib/game.ts oneSense). type = 영어로 직접 쓰기 */
+type Q = PlannedItem & { shown: StudyWord; choices: StudyWord[]; type: boolean }
+
+/** 답한 결과. pick = 고른 보기 번호, typed = 쓴 답, typo = 한 글자만 틀려서 정답으로 친 것 */
+type Answer = { ok: boolean; skip?: boolean; pick?: number; typed?: string; typo?: boolean }
 
 /** 한 단어에 한 번씩, 다시 풀기 없음. 답할 때마다 복습 기록(SRS)에도 반영 */
-function TestRun({ items, pool, onDone }: { items: PlannedItem[]; pool: StudyWord[]; onDone: (t: Test) => void }) {
+function TestRun({ items, pool, typing, onDone }: { items: PlannedItem[]; pool: StudyWord[]; typing: Set<string>; onDone: (t: Test) => void }) {
   useImmersive()
-  const [qs] = useState<Q[]>(() => items.map((it) => ({ ...it, choices: shuffle([it.w, ...distractors(it.w, pool)]) })))
+  const [qs] = useState<Q[]>(() => {
+    // 오답 보기는 테스트 전체에서 고르게 돌려 써요 (lib/game.ts)
+    const pick = distractorPicker(pool, items.map((it) => it.w))
+    return items.map((it) => {
+      const shown = oneSense(it.w)
+      const type = typing.has(it.w.key)
+      return { ...it, shown, type, choices: type ? [] : shuffle([shown, ...pick(shown)]) }
+    })
+  })
   const [pos, setPos] = useState(0)
-  /** 고른 보기 번호, -1 = 모르겠어요 */
-  const [picked, setPicked] = useState<number | null>(null)
+  const [res, setRes] = useState<Answer | null>(null)
+  const [text, setText] = useState('')
   const results = useRef<WordTestItem[]>([])
   const startedAt = useRef(Date.now())
   const advanced = useRef(-1)
   const q = qs[pos]
-  const ok = picked !== null && picked >= 0 && q.choices[picked] === q.w
 
-  function answer(i: number) {
-    if (picked !== null) return
-    setPicked(i)
-    const right = i >= 0 && q.choices[i] === q.w
-    results.current.push({ key: q.w.key, en: q.w.en, ko: q.w.ko, pos: q.w.pos, part: q.part, why: q.why, ok: right, skip: i < 0 || undefined })
-    reviewWord(q.w.key, right)
-    if (right) {
+  function finish(a: Answer) {
+    if (res) return
+    setRes(a)
+    results.current.push({ key: q.w.key, en: q.w.en, ko: q.w.ko, pos: q.w.pos, part: q.part, why: q.why, ok: a.ok, skip: a.skip || undefined })
+    reviewWord(q.w.key, a.ok)
+    if (a.ok) {
       sfx.right()
       speak(q.w.en)
     } else sfx.wrong()
+  }
+
+  const pickAnswer = (i: number) => finish({ ok: q.choices[i] === q.shown, pick: i })
+  const skip = () => finish({ ok: false, skip: true })
+  function submitTyped(e?: React.FormEvent) {
+    e?.preventDefault()
+    if (!text.trim()) return
+    const v = checkTyped(text, q.w.en)
+    finish({ ok: !!v, typed: text.trim(), typo: v === 'typo' })
   }
 
   function next() {
@@ -216,45 +241,84 @@ function TestRun({ items, pool, onDone }: { items: PlannedItem[]; pool: StudyWor
       return
     }
     setPos(pos + 1)
-    setPicked(null)
+    setRes(null)
+    setText('')
   }
 
+  // 정답이면 잠깐 보여 주고 넘어가기 (철자를 봐야 하는 typo 는 직접 넘기기)
   useEffect(() => {
-    if (!ok) return
+    if (!res?.ok || res.typo) return
     const t = setTimeout(next, 800)
     return () => clearTimeout(t)
   })
 
-  const answered = picked !== null
+  const answered = res !== null
+  const ok = !!res?.ok
   return (
     <div className="game">
       <RunHead exitHref="#/" progress={(pos + (answered ? 1 : 0)) / qs.length} count={`${pos + 1}/${qs.length}`} />
       <div className="game-body" key={pos}>
         <p className="game-prompt">
-          {q.part === 'review' && <span className="tag-retry">복습</span>}이 단어의 뜻은?
+          {q.part === 'review' && <span className="tag-retry">복습</span>}
+          {q.type && <span className="tag-retry tag-type">직접 쓰기</span>}
+          {q.type ? '영어로 써 보세요' : '이 단어의 뜻은?'}
         </p>
-        <div className="q-stage">
-          <div className="q-word">
-            <span className="en-serif">{q.w.en}</span>
-            <Speak text={q.w.en} />
-          </div>
-          <PosTag pos={q.w.pos} />
-        </div>
-        <div className="choices ko">
-          {q.choices.map((c, i) => {
-            const cls = !answered ? '' : c === q.w ? 'right' : i === picked ? 'wrong' : 'dim'
-            return (
-              <button key={c.key} type="button" className={`choice ${cls}`} onClick={() => answer(i)} disabled={answered && c !== q.w && i !== picked}>
-                <span className="choice-n">{i + 1}</span>
-                <span>{c.ko}</span>
-                {answered && c === q.w && <Check className="mark" size={20} strokeWidth={2.6} />}
-                {answered && i === picked && c !== q.w && <X className="mark" size={20} strokeWidth={2.6} />}
-              </button>
-            )
-          })}
-        </div>
+        {q.type ? (
+          <>
+            <div className="q-stage">
+              <div className="q-word ko">{q.shown.ko}</div>
+              <PosTag pos={q.shown.pos} />
+            </div>
+            <form className="type-form" onSubmit={submitTyped}>
+              <input
+                className={`input type-input ${!res ? '' : ok ? 'right' : 'wrong'}`}
+                placeholder="영어로 쓰기"
+                aria-label="영어"
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                disabled={answered}
+                autoComplete="off"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                enterKeyHint="done"
+                autoFocus
+              />
+              {!answered && (
+                <button type="submit" className="btn primary block big" disabled={!text.trim()}>
+                  확인
+                </button>
+              )}
+            </form>
+            {!answered && <p className="muted small">두 번 이상 틀린 단어라서 직접 써 봐요. 괄호 안은 써도 안 써도 돼요.</p>}
+          </>
+        ) : (
+          <>
+            <div className="q-stage">
+              <div className="q-word">
+                <span className="en-serif">{q.w.en}</span>
+                <Speak text={q.w.en} />
+              </div>
+              <PosTag pos={q.shown.pos} />
+            </div>
+            <div className="choices ko">
+              {q.choices.map((c, i) => {
+                const right = c === q.shown
+                const cls = !answered ? '' : right ? 'right' : i === res?.pick ? 'wrong' : 'dim'
+                return (
+                  <button key={c.key} type="button" className={`choice ${cls}`} onClick={() => pickAnswer(i)} disabled={answered && !right && i !== res?.pick}>
+                    <span className="choice-n">{i + 1}</span>
+                    <span>{c.ko}</span>
+                    {answered && right && <Check className="mark" size={20} strokeWidth={2.6} />}
+                    {answered && i === res?.pick && !right && <X className="mark" size={20} strokeWidth={2.6} />}
+                  </button>
+                )
+              })}
+            </div>
+          </>
+        )}
         {!answered && (
-          <button type="button" className="btn block test-skip" onClick={() => answer(-1)}>
+          <button type="button" className="btn block test-skip" onClick={skip}>
             <CircleHelp size={18} /> 모르겠어요
           </button>
         )}
@@ -264,14 +328,14 @@ function TestRun({ items, pool, onDone }: { items: PlannedItem[]; pool: StudyWor
           <div className="fb-row">
             <span className="fb-stamp">{ok ? <Check size={20} strokeWidth={3} /> : <X size={20} strokeWidth={3} />}</span>
             <div className="fb-text">
-              <b>{ok ? '맞았어요' : picked! < 0 ? '괜찮아요, 정답은' : '정답은'}</b>
-              {!ok && (
+              <b>{res.typo ? '거의 맞았어요! 철자는' : ok ? '맞았어요' : res.skip ? '괜찮아요, 정답은' : '정답은'}</b>
+              {(!ok || res.typo) && (
                 <span>
                   <span className="en-serif">{q.w.en}</span> = <Meaning ko={q.w.ko} pos={q.w.pos} />
                 </span>
               )}
             </div>
-            {!ok && <Speak text={q.w.en} />}
+            {(!ok || res.typo) && <Speak text={q.w.en} />}
           </div>
           {!ok && q.w.ex && (
             <p className="fb-ex">

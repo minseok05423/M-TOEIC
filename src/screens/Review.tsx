@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ArrowRight, BookOpen } from 'lucide-react'
+import { ArrowRight, BookOpen, Headphones } from 'lucide-react'
 import { getState, useStore } from '../lib/store.ts'
 import { allWords, type StudyWord } from '../lib/words.ts'
 import { isDue, MAX_BOX, type SrsCard } from '../lib/srs.ts'
@@ -133,6 +133,19 @@ export function Review() {
           </a>
         </div>
       )}
+
+      <div className="group-card">
+        <a className="row" href={href('part1')}>
+          <span className="row-ico">
+            <Headphones size={20} />
+          </span>
+          <span className="row-text">
+            토익 Part 1 사진 묘사 듣기
+            <span className="sub">장면을 보고 네 문장을 들은 뒤 맞는 것 고르기</span>
+          </span>
+          <ArrowRight size={18} className="muted" />
+        </a>
+      </div>
 
       {stats.total > 0 && (
         <section className="card">

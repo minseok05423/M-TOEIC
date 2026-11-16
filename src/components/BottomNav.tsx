@@ -1,4 +1,4 @@
-import { BookOpen, House, RotateCcw, Settings, type LucideIcon } from 'lucide-react'
+import { BookOpen, House, RotateCcw, Settings, Users, type LucideIcon } from 'lucide-react'
 import { href } from '../lib/router.ts'
 
 const ITEMS: { id: string; icon: LucideIcon; label: string }[] = [
@@ -8,10 +8,16 @@ const ITEMS: { id: string; icon: LucideIcon; label: string }[] = [
   { id: 'settings', icon: Settings, label: '설정' },
 ]
 
-export function BottomNav({ active, due }: { active: string; due: number }) {
+/** 선생님 계정의 탭 */
+const TEACHER_ITEMS: typeof ITEMS = [
+  { id: '', icon: Users, label: '학생 현황' },
+  { id: 'settings', icon: Settings, label: '설정' },
+]
+
+export function BottomNav({ active, due, teacher }: { active: string; due: number; teacher?: boolean }) {
   return (
     <nav className="bottomnav">
-      {ITEMS.map(({ id, icon: Icon, label }) => {
+      {(teacher ? TEACHER_ITEMS : ITEMS).map(({ id, icon: Icon, label }) => {
         const on = active === id
         return (
           <a key={id} href={id ? href(id) : '#/'} className={on ? 'on' : ''} aria-current={on ? 'page' : undefined}>

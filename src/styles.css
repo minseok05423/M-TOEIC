@@ -2874,3 +2874,291 @@ mark .pos {
   font-weight: 700;
   color: var(--ink-2);
 }
+
+/* ───────── 단어 테스트: 직접 쓰기 ───────── */
+.tag-retry.tag-type {
+  color: var(--blue);
+}
+.type-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.type-input {
+  font-family: var(--serif);
+  font-size: 1.3rem;
+  text-align: center;
+  min-height: 58px;
+}
+.type-input.right {
+  border-color: var(--green);
+  background: var(--green-soft);
+}
+.type-input.wrong {
+  border-color: var(--red);
+  background: var(--red-soft);
+}
+
+/* ───────── Part 1 사진 묘사 ───────── */
+.p1-scene {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: var(--card);
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--r);
+  padding: 16px;
+  font-size: 1.08rem;
+  font-weight: 600;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+.p1-scene svg {
+  flex: none;
+  margin-top: 3px;
+  color: var(--ink-2);
+}
+.p1-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-right: 24px;
+  text-align: left;
+}
+.p1-playing {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--blue);
+  font-weight: 700;
+}
+.p1-words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.p1-words span {
+  font-size: 0.85rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--card);
+  border: 1px solid var(--line-strong);
+}
+
+/* ───────── 로그인 · 회원가입 ───────── */
+.login-alt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.form-title {
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+.field-err {
+  color: var(--red);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.mail-sent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  word-break: keep-all;
+}
+.mail-sent svg {
+  color: var(--blue);
+}
+.mail-sent h2 {
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+/* ───────── 선생님: 학생 현황 ───────── */
+.t-refresh {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: none;
+  background: none;
+  color: var(--ink);
+}
+.t-refresh.spin svg {
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.t-pill {
+  flex: none;
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1.5px solid currentColor;
+  white-space: nowrap;
+}
+.t-pill.ok {
+  color: var(--green);
+  background: var(--green-soft);
+}
+.t-pill.behind {
+  color: var(--red);
+  background: var(--red-soft);
+}
+.t-pill.new {
+  color: var(--muted);
+}
+.t-pill.blue {
+  color: var(--blue);
+  background: var(--blue-soft);
+}
+.t-student .row-text {
+  gap: 2px;
+}
+.t-email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.row-text .sub,
+.t-rules {
+  word-break: keep-all;
+}
+.t-rules {
+  margin: 0;
+  padding: 0 6px 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.t-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 4px;
+}
+.t-alert {
+  border: 2px solid var(--edge);
+  border-radius: var(--r);
+  background: var(--card);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  word-break: keep-all;
+}
+.t-alert.behind {
+  border-color: var(--red);
+  background: var(--red-soft);
+  box-shadow: 3px 3px 0 var(--red);
+}
+.t-alert.ok {
+  border-color: var(--green);
+  background: var(--green-soft);
+  box-shadow: 3px 3px 0 var(--green);
+}
+.t-alert-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+}
+.t-alert.behind .t-alert-title {
+  color: var(--red);
+}
+.t-alert.ok .t-alert-title {
+  color: var(--green);
+}
+.t-alert ul {
+  margin: 0;
+  padding-left: 20px;
+}
+.t-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin: 0;
+  background: var(--card);
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--r);
+  overflow: hidden;
+}
+.t-stats div {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.t-stats div:nth-child(odd) {
+  border-right: 1px solid var(--line);
+}
+.t-stats div:nth-last-child(-n + 2) {
+  border-bottom: none;
+}
+.t-stats dt {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+.t-stats dd {
+  margin: 2px 0 0;
+  font-family: var(--serif);
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+.t-stats dd small {
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+.t-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+}
+.t-table th,
+.t-table td {
+  padding: 8px 12px;
+  text-align: left;
+  border-top: 1px solid var(--line);
+}
+.t-table thead th {
+  border-top: none;
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-weight: 700;
+  background: var(--card-2);
+}
+.t-table .num {
+  text-align: right;
+}
+.t-table tr:not(.on) td {
+  color: var(--muted);
+}
+.t-chapter {
+  min-height: 0;
+  background: var(--card-2);
+  word-break: keep-all;
+}
+.t-score {
+  font-variant-numeric: tabular-nums;
+}
+.t-note-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.t-note-head b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
