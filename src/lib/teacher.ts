@@ -2,7 +2,7 @@ import { useEffect, useSyncExternalStore } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './supabase.ts'
 import { explainSyncError } from './sync.ts'
-import { analyze, mergeChapters, type Report, type StudentRaw } from './analytics.ts'
+import { analyze, dueKey, mergeChapters, type Report, type StudentRaw } from './analytics.ts'
 import type { Chapter } from '../content/types.ts'
 import type { Progress } from './store.ts'
 
@@ -49,19 +49,26 @@ const by = <T extends { user_id: string }>(rows: T[]) => {
   return m
 }
 
-async function load() {
+/** quiet = 화면을 '불러오는 중' 으로 바꾸지 않고 뒤에서 새로 받기 (마감일을 바꾼 뒤) */
+async function load(quiet = false) {
   if (!supabase) return set({ state: 'error', error: '서버 설정이 없어요 (.env.local)' })
   const db = supabase
-  set({ state: 'loading' })
+  if (!quiet || current.state !== 'ready') set({ state: 'loading' })
   try {
     const st = await db.rpc('teacher_students')
     if (st.error) throw st.error
-    const [progress, words, tests, notes, chapters] = await Promise.all([
+    const [progress, words, tests, notes, chapters, dues] = await Promise.all([
       every((a, b) => db.from('progress').select('user_id, data, updated_at').range(a, b)),
       every((a, b) => db.from('custom_words').select('user_id, en, ko, deck, created_at, deleted').range(a, b)),
       every((a, b) => db.from('word_tests').select('user_id, day, score, total, items, finished_at').range(a, b)),
-      every((a, b) => db.from('lesson_notes').select('user_id, id, status, kind, lesson_title, point, question, level, created_at').range(a, b)),
+      every((a, b) =>
+        db
+          .from('lesson_notes')
+          .select('user_id, id, status, kind, scope, place, lesson_title, target_label, category, point, question, example, level, reply, created_at')
+          .range(a, b),
+      ),
       every((a, b) => db.from('user_chapters').select('user_id, chapter').range(a, b)),
+      loadDue(),
     ])
     const P = by(progress as { user_id: string; data: Progress; updated_at: string }[])
     const W = by(words as (StudentRaw['words'][number] & { user_id: string })[])
@@ -81,6 +88,7 @@ async function load() {
         tests: T.get(u.id) ?? [],
         notes: N.get(u.id) ?? [],
         chapters: mergeChapters((C.get(u.id) ?? []).map((r) => r.chapter)),
+        due: dues,
       }
       return { raw, report: analyze(raw) }
     })
@@ -91,6 +99,32 @@ async function load() {
   } catch (e) {
     set({ state: 'error', error: explainSyncError(e).message })
   }
+}
+
+/** 선생님이 정한 레슨 마감일 (모든 학생 공통). key: 'chapterId/lessonId' */
+export async function loadDue(): Promise<Record<string, string>> {
+  if (!supabase) return {}
+  const { data, error } = await supabase.from('lesson_due').select('chapter_id, lesson_id, due')
+  if (error) throw error
+  return Object.fromEntries((data ?? []).map((r) => [dueKey(r.chapter_id, r.lesson_id), r.due as string]))
+}
+
+/**
+ * 레슨 마감일 정하기 (선생님만, DB 가 막아요). day 가 null 이면 기본(수업 날 + 2일)으로 되돌림.
+ * 끝나면 반 전체를 다시 불러와요.
+ */
+export async function setDue(chapterId: string, lessonIds: string[], day: string | null) {
+  if (!supabase) throw new Error('서버 설정이 없어요')
+  const q =
+    day === null
+      ? supabase.from('lesson_due').delete().eq('chapter_id', chapterId).in('lesson_id', lessonIds)
+      : supabase.from('lesson_due').upsert(
+          lessonIds.map((lesson_id) => ({ chapter_id: chapterId, lesson_id, due: day, updated_at: new Date().toISOString() })),
+          { onConflict: 'chapter_id,lesson_id' },
+        )
+  const { error } = await q
+  if (error) throw new Error(explainSyncError(error).message)
+  await load(true)
 }
 
 /** 반 전체 기록. 처음 한 번 불러오고, reload 로 새로고침 */

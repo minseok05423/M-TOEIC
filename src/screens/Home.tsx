@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { ArrowRight, Check, Star } from 'lucide-react'
+import { ArrowRight, Check, NotebookPen, Star } from 'lucide-react'
 import { TOTAL_TARGET } from '../lib/wordtest.ts'
 import { useChapters, type ShownChapter } from '../lib/content.ts'
 import { lessonKey, useStore, type Progress } from '../lib/store.ts'
@@ -8,6 +8,7 @@ import { href } from '../lib/router.ts'
 import { lessonWords } from '../lib/words.ts'
 import { stars } from '../lib/game.ts'
 import { stageList } from '../lib/stages.ts'
+import { lessonDue } from '../lib/analytics.ts'
 import { LogoMark } from '../components/Logo.tsx'
 
 const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토']
@@ -54,6 +55,9 @@ export function Home({ due }: { due: number }) {
   const chapters = useChapters()
   const up = useMemo(() => nextUp(progress, chapters), [progress, chapters])
   const tests = useStore((s) => s.tests)
+  const dueDates = useStore((s) => s.due)
+  const notes = useStore((s) => s.notes)
+  const replies = useMemo(() => Object.values(notes).filter((n) => n.reply).length, [notes])
   const testToday = useMemo(
     () => Object.values(tests).filter((t) => t.day === today()).sort((a, b) => b.finishedAt - a.finishedAt)[0],
     [tests],
@@ -145,6 +149,19 @@ export function Home({ due }: { due: number }) {
         )}
       </section>
 
+      <div className="group-card">
+        <a className="row" href={href('notes')}>
+          <span className="row-ico">
+            <NotebookPen size={20} />
+          </span>
+          <span className="row-text">
+            내 메모
+            <span className="sub">{replies ? `선생님 답장 ${replies}개 · ` : ''}단어나 궁금한 것도 선생님께 남겨요</span>
+          </span>
+          <ArrowRight size={18} className="muted" />
+        </a>
+      </div>
+
       {chapters.map((ch, ci) => {
         const done = ch.lessons.filter((l) => progress.lessons[lessonKey(ch.id, l.id)]?.quizTotal).length
         return (
@@ -170,6 +187,8 @@ export function Home({ due }: { due: number }) {
                 const lp = progress.lessons[lessonKey(ch.id, l.id)]
                 const all = st.every((s) => s.done)
                 const isUp = up?.l === l
+                const dl = lessonDue(dueDates, ch, l.id)
+                const late = !all && dl.day < today()
                 return (
                   <li key={l.id}>
                     <a className={`lesson-row ${all ? 'all' : ''} ${isUp ? 'up' : ''}`} href={href('l', ch.id, l.id)}>
@@ -177,6 +196,11 @@ export function Home({ due }: { due: number }) {
                       <span className="lesson-text">
                         <b>{l.title}</b>
                         <span>{l.summary}</span>
+                        {!all && (
+                          <span className={`lesson-due ${late ? 'late' : ''}`}>
+                            {formatDate(dl.day)}까지{late ? ' · 늦었어요' : ''}
+                          </span>
+                        )}
                         <span className="pips" aria-label={`${st.filter((s) => s.done).length}/${st.length} 단계`}>
                           {st.map((s) => (
                             <i key={s.id} className={s.done ? 'on' : ''} />

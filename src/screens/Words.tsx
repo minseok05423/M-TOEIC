@@ -6,6 +6,7 @@ import { boxLabel } from '../lib/srs.ts'
 import { go, href, replace } from '../lib/router.ts'
 import { TopBar } from '../components/TopBar.tsx'
 import { HideKoSwitch, WordRow } from '../components/WordRow.tsx'
+import { useFreeNote } from '../components/NoteSheet.tsx'
 
 function groupBy(ws: StudyWord[], key: (w: StudyWord) => string): [string, StudyWord[]][] {
   const m = new Map<string, StudyWord[]>()
@@ -20,6 +21,7 @@ export function Words({ view }: { view: 'mine' | 'lesson' }) {
   const srs = useStore((s) => s.progress.srs)
   const [q, setQ] = useState('')
   const [hideKo, setHideKo] = useState(false)
+  const { noteWord, sheet } = useFreeNote(view === 'mine' ? '단어장 (내 단어)' : '단어장 (수업 단어)')
   const userChapters = useStore((s) => s.userChapters)
   const mine = useMemo(() => customWords(custom), [custom])
   const lessonList = useMemo(() => lessonWordList(), [userChapters])
@@ -117,11 +119,13 @@ export function Words({ view }: { view: 'mine' | 'lesson' }) {
                 onEdit={w.customId ? () => go('words', 'edit', w.customId!) : undefined}
                 important={w.important}
                 onStar={w.customId ? () => setImportant(w.customId!, !w.important) : undefined}
+                onNote={() => noteWord(w)}
               />
             ))}
           </ul>
         </section>
       ))}
+      {sheet}
     </div>
   )
 }

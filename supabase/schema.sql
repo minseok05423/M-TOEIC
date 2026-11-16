@@ -216,3 +216,50 @@ revoke all on function public.teacher_students() from public, anon;
 grant execute on function public.teacher_students() to authenticated;
 
 notify pgrst, 'reload schema';
+
+-- ═════════ 메모를 어디서나 · 레슨 마감일 ═════════
+
+-- 12) 메모를 레슨 밖에서도: 단어 하나 · 그냥 메모. scope = 무엇에 대한 메모, place = 어느 화면에서 썼는지 (선생님이 봄)
+--     단어 메모: stage 'words', target_id 'words:<단어 key>', target_label '영어 · 뜻'. 그냥 메모: stage 'lesson', target 없음
+alter table public.lesson_notes add column if not exists scope text not null default 'lesson';
+alter table public.lesson_notes add column if not exists place text;
+alter table public.lesson_notes alter column chapter_id drop not null;
+alter table public.lesson_notes alter column lesson_id drop not null;
+alter table public.lesson_notes alter column lesson_title drop not null;
+do $$ begin
+  alter table public.lesson_notes add constraint lesson_notes_scope_check check (scope in ('lesson', 'word', 'general'));
+exception when duplicate_object then null;
+end $$;
+do $$ begin
+  alter table public.lesson_notes add constraint lesson_notes_lesson_has_ids
+    check (scope <> 'lesson' or (chapter_id is not null and lesson_id is not null and lesson_title is not null));
+exception when duplicate_object then null;
+end $$;
+do $$ begin
+  alter table public.lesson_notes add constraint lesson_notes_place_len check (place is null or char_length(place) <= 200);
+exception when duplicate_object then null;
+end $$;
+
+-- 13) 레슨 마감일. 선생님이 앱(학생 현황)에서 정하고 모든 학생이 읽음. 없는 레슨은 수업 날 + 2일 (src/lib/analytics.ts)
+create table if not exists public.lesson_due (
+  chapter_id text not null,
+  lesson_id text not null,
+  due date not null,
+  updated_by uuid default auth.uid() references auth.users on delete set null,
+  updated_at timestamptz not null default now(),
+  primary key (chapter_id, lesson_id)
+);
+alter table public.lesson_due enable row level security;
+drop policy if exists "everyone reads due dates" on public.lesson_due;
+create policy "everyone reads due dates" on public.lesson_due for select to authenticated using (true);
+drop policy if exists "teacher adds due dates" on public.lesson_due;
+create policy "teacher adds due dates" on public.lesson_due for insert to authenticated with check ((select public.is_teacher()));
+drop policy if exists "teacher changes due dates" on public.lesson_due;
+create policy "teacher changes due dates" on public.lesson_due
+  for update to authenticated using ((select public.is_teacher())) with check ((select public.is_teacher()));
+drop policy if exists "teacher clears due dates" on public.lesson_due;
+create policy "teacher clears due dates" on public.lesson_due for delete to authenticated using ((select public.is_teacher()));
+revoke all on public.lesson_due from anon, authenticated;
+grant select, insert, update, delete on public.lesson_due to authenticated;
+
+notify pgrst, 'reload schema';

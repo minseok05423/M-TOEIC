@@ -3162,3 +3162,98 @@ mark .pos {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ───────── 레슨 마감일 ───────── */
+.lesson-text > span.lesson-due {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.lesson-text > span.lesson-due.late {
+  color: var(--red);
+}
+.t-due-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin-top: 6px;
+}
+.t-date {
+  width: auto;
+  min-height: 36px;
+  padding: 4px 10px;
+  font-size: 16px; /* iOS 확대 방지 */
+  border-width: 1.5px;
+}
+.t-date.busy {
+  opacity: 0.5;
+}
+.t-lesson {
+  align-items: flex-start;
+}
+.t-lesson .t-pill {
+  margin-top: 2px;
+}
+
+/* ───────── 메모 (단어 · 그냥 메모 · 선생님 화면) ───────── */
+.ns-about {
+  background: var(--card-2);
+  border-radius: var(--r-sm);
+  padding: 10px 12px;
+  word-break: keep-all;
+}
+.note-ex {
+  font-size: 0.92rem;
+  color: var(--ink-2);
+}
+.t-note {
+  align-items: flex-start;
+}
+.t-note .row-text {
+  gap: 4px;
+}
+.t-note.done {
+  background: var(--card-2);
+}
+.t-scope {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.t-new {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--red);
+}
+.t-done {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--green);
+}
+.t-where {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--blue);
+  word-break: keep-all;
+}
+.t-note-body,
+.t-note-q {
+  word-break: keep-all;
+}
+.t-note-q {
+  padding-left: 10px;
+  border-left: 3px solid var(--red);
+}
+.t-note-ex {
+  font-size: 0.9rem;
+  color: var(--ink-2);
+}
+.t-note-reply {
+  font-size: 0.85rem;
+  color: var(--green);
+  word-break: keep-all;
+}
+.row-text .sub.t-new {
+  color: var(--red);
+}

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Lightbulb, Pencil, Star } from 'lucide-react'
+import { Lightbulb, NotebookPen, Pencil, Star } from 'lucide-react'
 import { MAX_BOX } from '../lib/srs.ts'
 import { Speak } from './Speak.tsx'
 import { Meaning } from './Pos.tsx'
@@ -36,6 +36,7 @@ export function WordRow({
   onEdit,
   important,
   onStar,
+  onNote,
 }: {
   en: string
   ko: string
@@ -49,6 +50,8 @@ export function WordRow({
   important?: boolean
   /** 있으면 ★ 버튼 (중요 표시 켜고 끄기) */
   onStar?: () => void
+  /** 있으면 펼쳤을 때 '메모' 버튼 (이 단어에 대한 메모를 선생님께) */
+  onNote?: () => void
 }) {
   const [open, setOpen] = useState(false)
   const shown = !hideKo || open
@@ -76,7 +79,7 @@ export function WordRow({
           </button>
         )}
       </div>
-      {open && (ex || tip || onEdit || level) && (
+      {open && (ex || tip || onEdit || level || onNote) && (
         <div className="word-more">
           {ex && (
             <div className="word-ex">
@@ -94,6 +97,8 @@ export function WordRow({
             </p>
           )}
           {level && <p className="small muted">상태 · {level}</p>}
+          {(onEdit || onNote) && (
+          <span className="row-gap">
           {onEdit && (
             <button
               type="button"
@@ -105,6 +110,20 @@ export function WordRow({
             >
               <Pencil size={14} /> 수정
             </button>
+          )}
+          {onNote && (
+            <button
+              type="button"
+              className="btn small"
+              onClick={(e) => {
+                e.stopPropagation()
+                onNote()
+              }}
+            >
+              <NotebookPen size={14} /> 메모
+            </button>
+          )}
+          </span>
           )}
         </div>
       )}

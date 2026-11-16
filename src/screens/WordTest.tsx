@@ -15,6 +15,7 @@ import { GameDone } from '../components/GameDone.tsx'
 import { Speak } from '../components/Speak.tsx'
 import { WordRow } from '../components/WordRow.tsx'
 import { Meaning, PosTag } from '../components/Pos.tsx'
+import { useFreeNote } from '../components/NoteSheet.tsx'
 
 const partScore = (t: Test, part: WordTestItem['part']) => {
   const xs = t.items.filter((x) => x.part === part)
@@ -173,14 +174,16 @@ export function WordTest() {
 }
 
 function WrongList({ items }: { items: WordTestItem[] }) {
+  const { noteWord, sheet } = useFreeNote('단어 테스트 결과')
   return (
     <section className="card word-card">
       <h3 className="group-title">다시 볼 단어 · {items.length}</h3>
       <ul className="word-list">
         {items.map((x) => (
-          <WordRow key={x.key} en={x.en} ko={x.ko} pos={x.pos} level={x.skip ? '모르겠어요' : '틀림'} />
+          <WordRow key={x.key} en={x.en} ko={x.ko} pos={x.pos} level={x.skip ? '모르겠어요' : '틀림'} onNote={() => noteWord(x, 'confusing')} />
         ))}
       </ul>
+      {sheet}
     </section>
   )
 }

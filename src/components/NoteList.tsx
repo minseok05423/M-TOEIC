@@ -6,7 +6,7 @@ import { CATEGORIES } from '../lib/notes.ts'
 import { formatDate } from '../lib/date.ts'
 
 function statusOf(n: LessonNote): { cls: string; text: string } {
-  if (n.status === 'done') return { cls: 'done', text: '레슨에 반영됨' }
+  if (n.status === 'done') return { cls: 'done', text: n.reply ? '선생님이 답함' : '반영됨' }
   if (n.synced) return { cls: 'sent', text: '선생님께 전달됨' }
   return { cls: 'wait', text: '보내는 중' }
 }
@@ -34,27 +34,44 @@ export function NoteList({ chapterId, lesson, onNew }: { chapterId: string; less
           <span>선생님이 보고 나만의 레슨을 만들어 줘요</span>
         </span>
       </button>
-      {notes.map((n) => {
-        const st = statusOf(n)
-        return (
-          <article key={n.id} className={`note-item ${n.kind}`}>
-            <header>
-              {n.kind === 'important' ? <Lightbulb size={16} /> : <CircleHelp size={16} />}
-              <b>{n.kind === 'important' ? '중요한 점' : `헷갈리는 점 · ${CATEGORIES.find((c) => c.id === n.category)?.label ?? ''}`}</b>
-              <span className={`note-status ${st.cls}`}>{st.text}</span>
-            </header>
-            {n.targetLabel && <p className="note-target">{n.targetLabel}</p>}
-            <p>{n.point}</p>
-            {n.question && <p className="note-q">{n.question}</p>}
-            {n.reply && (
-              <p className="note-reply">
-                <span>선생님</span> {n.reply}
-              </p>
-            )}
-            <p className="note-date">{formatDate(ymd(n.createdAt))}</p>
-          </article>
-        )
-      })}
+      {notes.map((n) => (
+        <NoteItem key={n.id} n={n} />
+      ))}
     </section>
+  )
+}
+
+/** 메모가 무엇에 대한 것인지 (내 메모 화면에서 보여 줌) */
+export function noteWhere(n: LessonNote): string {
+  if (n.scope === 'general') return '그냥 메모'
+  if (n.scope === 'word') return `단어 · ${n.targetLabel ?? ''}`
+  return `${n.lessonTitle ?? '레슨'} · ${n.targetLabel ?? '레슨 전체'}`
+}
+
+/** 메모 한 장. showWhere = 무엇에 대한 메모인지도 보여 주기 (레슨 화면 밖) */
+export function NoteItem({ n, showWhere }: { n: LessonNote; showWhere?: boolean }) {
+  const st = statusOf(n)
+  const where = showWhere ? noteWhere(n) : n.targetLabel
+  return (
+    <article className={`note-item ${n.kind}`}>
+      <header>
+        {n.kind === 'important' ? <Lightbulb size={16} /> : <CircleHelp size={16} />}
+        <b>{n.kind === 'important' ? '중요한 점' : `헷갈리는 점 · ${CATEGORIES.find((c) => c.id === n.category)?.label ?? ''}`}</b>
+        <span className={`note-status ${st.cls}`}>{st.text}</span>
+      </header>
+      {where && <p className="note-target">{where}</p>}
+      <p>{n.point}</p>
+      {n.question && <p className="note-q">{n.question}</p>}
+      {n.example && <p className="note-ex en-serif">{n.example}</p>}
+      {n.reply && (
+        <p className="note-reply">
+          <span>선생님</span> {n.reply}
+        </p>
+      )}
+      <p className="note-date">
+        {formatDate(ymd(n.createdAt))}
+        {showWhere && n.place ? ` · ${n.place}에서` : ''}
+      </p>
+    </article>
   )
 }

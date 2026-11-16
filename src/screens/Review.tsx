@@ -9,6 +9,7 @@ import { stars } from '../lib/game.ts'
 import { TopBar } from '../components/TopBar.tsx'
 import { WordGame, type GameResult } from '../components/WordGame.tsx'
 import { GameDone } from '../components/GameDone.tsx'
+import { useFreeNote } from '../components/NoteSheet.tsx'
 
 const SESSION = 15
 
@@ -46,6 +47,7 @@ export function Review() {
   const [snap, setSnap] = useState(srs)
   const [result, setResult] = useState<GameResult | null>(null)
   const [round, setRound] = useState(0)
+  const { noteWord, noteGeneral, sheet } = useFreeNote('복습 게임')
 
   const stats = useMemo(() => {
     const cards = Object.entries(srs).filter(([k]) => map.has(k))
@@ -69,14 +71,22 @@ export function Review() {
 
   if (session && !result)
     return (
-      <WordGame
-        key={round}
-        words={session}
-        pool={[...map.values()]}
-        isNew={(w) => !snap[w.key] || snap[w.key].reps === 0}
-        exitHref="#/review"
-        onDone={setResult}
-      />
+      <>
+        <WordGame
+          key={round}
+          words={session}
+          pool={[...map.values()]}
+          isNew={(w) => !snap[w.key] || snap[w.key].reps === 0}
+          exitHref="#/review"
+          onDone={setResult}
+          onNote={(targetId, confusing) => {
+            const w = targetId && map.get(targetId.replace(/^words:/, ''))
+            if (w) noteWord(w, confusing ? 'confusing' : undefined)
+            else noteGeneral()
+          }}
+        />
+        {sheet}
+      </>
     )
 
   if (result)

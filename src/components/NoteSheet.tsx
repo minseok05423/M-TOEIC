@@ -6,11 +6,16 @@ import { CATEGORIES, findTarget, LEVELS, lessonTargets, MIN_CHARS, textLen, WHOL
 import { supabase, useSession } from '../lib/supabase.ts'
 import { sfx } from '../lib/sfx.ts'
 
+/** 무엇에 대한 메모인지: 레슨 (안의 한 곳을 고름) · 단어 하나 · 그냥 메모 */
+export type NoteAbout =
+  | { scope: 'lesson'; chapterId: string; lesson: Lesson; /** 처음에 골라 둘 곳 (lib/notes.ts 의 NoteTarget id) */ targetId?: string }
+  | { scope: 'word'; word: { key: string; en: string; ko: string } }
+  | { scope: 'general' }
+
 interface Props {
-  chapterId: string
-  lesson: Lesson
-  /** 처음에 골라 둘 곳 (lib/notes.ts 의 NoteTarget id) */
-  targetId?: string
+  about: NoteAbout
+  /** 지금 화면 이름 (선생님이 "어디서 썼는지" 봄). 예: '실전 퀴즈', '단어장' */
+  place: string
   kind?: NoteKind
   onClose: () => void
 }
@@ -19,10 +24,10 @@ interface Props {
  * 메모 남기기. 자유 글 대신 칸을 정해 두고, 다 채워야 보낼 수 있음
  * (선생님이 Claude Code 로 맞춤 레슨을 만들 때 그대로 읽을 수 있게).
  */
-export function NoteSheet({ chapterId, lesson, targetId, kind: kind0, onClose }: Props) {
+export function NoteSheet({ about, place, kind: kind0, onClose }: Props) {
   const session = useSession()
   const [kind, setKind] = useState<NoteKind | undefined>(kind0)
-  const [target, setTarget] = useState(findTarget(lesson, targetId).id)
+  const [target, setTarget] = useState(about.scope === 'lesson' ? findTarget(about.lesson, about.targetId).id : '')
   const [category, setCategory] = useState<NoteCategory>()
   const [level, setLevel] = useState<1 | 2 | 3>()
   const [point, setPoint] = useState('')
@@ -63,14 +68,26 @@ export function NoteSheet({ chapterId, lesson, targetId, kind: kind0, onClose }:
   function submit(e: React.FormEvent) {
     e.preventDefault()
     if (missing.length || !kind) return
-    const t = findTarget(lesson, target)
+    const where =
+      about.scope === 'lesson'
+        ? (() => {
+            const t = findTarget(about.lesson, target)
+            return {
+              chapterId: about.chapterId,
+              lessonId: about.lesson.id,
+              lessonTitle: about.lesson.title,
+              stage: t.stage,
+              targetId: t.id || undefined,
+              targetLabel: t.id ? t.label : undefined,
+            }
+          })()
+        : about.scope === 'word'
+          ? { stage: 'words' as const, targetId: `words:${about.word.key}`, targetLabel: `${about.word.en} · ${about.word.ko}` }
+          : { stage: 'lesson' as const }
     addNote({
-      chapterId,
-      lessonId: lesson.id,
-      lessonTitle: lesson.title,
-      stage: t.stage,
-      targetId: t.id || undefined,
-      targetLabel: t.id ? t.label : undefined,
+      scope: about.scope,
+      place,
+      ...where,
       kind,
       category: kind === 'confusing' ? category : undefined,
       level: kind === 'confusing' ? level : undefined,
@@ -106,7 +123,9 @@ export function NoteSheet({ chapterId, lesson, targetId, kind: kind0, onClose }:
             <p>
               {offline
                 ? '이 휴대폰에 저장했어요. 설정에서 로그인하면 선생님께 전달돼요.'
-                : '선생님께 전달돼요. 이 내용으로 나만의 레슨을 만들어 줄 거예요.'}
+                : about.scope === 'lesson'
+                  ? '선생님께 전달돼요. 이 내용으로 나만의 레슨을 만들어 줄 거예요.'
+                  : '선생님께 전달돼요. 답장은 내 메모에서 볼 수 있어요.'}
             </p>
             <button type="button" className="btn primary block big" onClick={onClose}>
               계속 공부하기
@@ -137,11 +156,18 @@ export function NoteSheet({ chapterId, lesson, targetId, kind: kind0, onClose }:
               </button>
             </fieldset>
 
+            {about.scope === 'word' && (
+              <p className="ns-about">
+                <span className="muted small">단어</span> <b className="en-serif">{about.word.en}</b> <span>{about.word.ko}</span>
+              </p>
+            )}
+            {about.scope === 'general' && <p className="ns-about small muted">레슨이나 단어와 상관없이 궁금한 것, 기억할 것을 적어요.</p>}
+            {about.scope === 'lesson' && (
             <label>
               어디에 대한 메모예요?
               <select className="input" value={target} onChange={(e) => setTarget(e.target.value)}>
                 <option value={WHOLE.id}>{WHOLE.label}</option>
-                {lessonTargets(lesson).map((g) => (
+                {lessonTargets(about.lesson).map((g) => (
                   <optgroup key={g.stage} label={g.title}>
                     {g.items.map((t) => (
                       <option key={t.id} value={t.id}>
@@ -152,6 +178,7 @@ export function NoteSheet({ chapterId, lesson, targetId, kind: kind0, onClose }:
                 ))}
               </select>
             </label>
+            )}
 
             {kind === 'confusing' && (
               <>
@@ -238,9 +265,22 @@ export function NoteSheet({ chapterId, lesson, targetId, kind: kind0, onClose }:
   )
 }
 
-/** 화면에서 메모 창을 열고 닫기 위한 작은 도우미 */
-export function useNoteSheet(chapterId: string, lesson: Lesson) {
+/** 레슨 화면에서 메모 창을 열고 닫기 위한 작은 도우미. place = 지금 화면 이름 */
+export function useNoteSheet(chapterId: string, lesson: Lesson, place: string) {
   const [open, setOpen] = useState<{ targetId?: string; kind?: NoteKind } | null>(null)
-  const sheet = open && <NoteSheet chapterId={chapterId} lesson={lesson} targetId={open.targetId} kind={open.kind} onClose={() => setOpen(null)} />
+  const sheet = open && (
+    <NoteSheet about={{ scope: 'lesson', chapterId, lesson, targetId: open.targetId }} place={place} kind={open.kind} onClose={() => setOpen(null)} />
+  )
   return { openNote: (targetId?: string, kind?: NoteKind) => setOpen({ targetId, kind }), sheet }
+}
+
+/** 레슨 밖 (단어 · 그냥 메모) 에서 메모 창 열기 */
+export function useFreeNote(place: string) {
+  const [open, setOpen] = useState<{ about: NoteAbout; kind?: NoteKind } | null>(null)
+  const sheet = open && <NoteSheet about={open.about} place={place} kind={open.kind} onClose={() => setOpen(null)} />
+  return {
+    noteWord: (word: { key: string; en: string; ko: string }, kind?: NoteKind) => setOpen({ about: { scope: 'word', word }, kind }),
+    noteGeneral: () => setOpen({ about: { scope: 'general' } }),
+    sheet,
+  }
 }

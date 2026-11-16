@@ -55,7 +55,7 @@ type StageP = { chapterId: string; lesson: LessonT; home: string }
 // ───────── 개념 ─────────
 
 function LearnStage({ chapterId, lesson, home }: StageP) {
-  const { openNote, sheet } = useNoteSheet(chapterId, lesson)
+  const { openNote, sheet } = useNoteSheet(chapterId, lesson, '개념 익히기')
   return (
     <>
       <ConceptPlayer
@@ -86,7 +86,7 @@ export function useLessonStages(chapterId: string, lesson: LessonT) {
 
 function Overview({ chapterId, lesson }: StageP) {
   const { list, next, lp } = useLessonStages(chapterId, lesson)
-  const { openNote, sheet } = useNoteSheet(chapterId, lesson)
+  const { openNote, sheet } = useNoteSheet(chapterId, lesson, '레슨 첫 화면')
   const wrong = lesson.quiz.filter((q) => lp?.wrong?.includes(q.id)).length
 
   return (
@@ -175,7 +175,7 @@ function pickRound(words: StudyWord[]): StudyWord[] {
 }
 
 function WordsStage({ chapterId, lesson, home }: StageP) {
-  const { openNote, sheet } = useNoteSheet(chapterId, lesson)
+  const { openNote, sheet } = useNoteSheet(chapterId, lesson, '단어 게임')
   const words = useMemo(() => lessonWords(chapterId, lesson.id), [chapterId, lesson.id])
   const [round, setRound] = useState(0)
   const [result, setResult] = useState<GameResult | null>(null)
@@ -240,7 +240,7 @@ function WordsStage({ chapterId, lesson, home }: StageP) {
 // ───────── 뼈대 찾기 ─────────
 
 function SentencesStage({ chapterId, lesson, home }: StageP) {
-  const { openNote, sheet } = useNoteSheet(chapterId, lesson)
+  const { openNote, sheet } = useNoteSheet(chapterId, lesson, '뼈대 찾기')
   const [round, setRound] = useState(0)
   const [result, setResult] = useState<{ clean: number; total: number } | null>(null)
   if (result) {
@@ -293,7 +293,7 @@ function SentencesStage({ chapterId, lesson, home }: StageP) {
 // ───────── 퀴즈 ─────────
 
 function QuizStage({ chapterId, lesson, home, onlyWrong }: StageP & { onlyWrong: boolean }) {
-  const { openNote, sheet } = useNoteSheet(chapterId, lesson)
+  const { openNote, sheet } = useNoteSheet(chapterId, lesson, '실전 퀴즈')
   const [set, setSet] = useState(() => {
     const wrong = getState().progress.lessons[lessonKey(chapterId, lesson.id)]?.wrong ?? []
     const w = lesson.quiz.filter((q) => wrong.includes(q.id))

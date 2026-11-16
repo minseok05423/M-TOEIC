@@ -1,6 +1,7 @@
+import { useState } from 'react'
 import { ChevronRight, CircleCheck, RefreshCw, TriangleAlert, Users } from 'lucide-react'
-import { useClass, type StudentView } from '../lib/teacher.ts'
-import { CALENDAR_DAYS, RULES, type LessonRow, type Report, type Status } from '../lib/analytics.ts'
+import { setDue, useClass, type StudentView } from '../lib/teacher.ts'
+import { CALENDAR_DAYS, LESSON_GRACE_DAYS, noteAbout, RULES, type LessonRow, type Report, type Status } from '../lib/analytics.ts'
 import { formatDate, today } from '../lib/date.ts'
 import { href } from '../lib/router.ts'
 import { TopBar } from '../components/TopBar.tsx'
@@ -83,6 +84,7 @@ export function TeacherHome() {
                   <span className="row-text">
                     <b className="t-email">{s.raw.email}</b>
                     <span className="sub">{summary(s.report)}</span>
+                    {s.report.notesNew.length > 0 && <span className="sub t-new">새 메모 {s.report.notesNew.length}개</span>}
                   </span>
                   <Pill tone={s.report.status}>{STATUS[s.report.status]}</Pill>
                   <ChevronRight size={18} className="muted" />
@@ -194,7 +196,7 @@ function Student({ s }: { s: StudentView }) {
       <Days r={r} />
       <Lessons rows={r.lessons} />
       <Tests r={r} />
-      {r.notesNew.length > 0 && <Notes r={r} />}
+      {r.notes.length > 0 ? <Notes r={r} /> : <p className="small muted pad-x">아직 남긴 메모가 없어요.</p>}
       <Rules />
     </>
   )
@@ -232,28 +234,86 @@ function Days({ r }: { r: Report }) {
   )
 }
 
+/** 마감일 고르기 (휴대폰 달력). 바꾸면 바로 저장 → 모든 학생에게 적용 */
+function DueInput({ value, label, onPick }: { value: string; label: string; onPick: (day: string) => Promise<void> }) {
+  const [busy, setBusy] = useState(false)
+  return (
+    <input
+      type="date"
+      className={`input t-date ${busy ? 'busy' : ''}`}
+      aria-label={label}
+      value={value}
+      disabled={busy}
+      onClick={(e) => e.stopPropagation()}
+      onChange={async (e) => {
+        const day = e.target.value
+        if (!day || day === value) return
+        setBusy(true)
+        try {
+          await onPick(day)
+        } catch (err) {
+          alert(`마감일을 못 바꿨어요: ${(err as Error).message}`)
+        } finally {
+          setBusy(false)
+        }
+      }}
+    />
+  )
+}
+
+async function resetDue(chapterId: string, lessonIds: string[]) {
+  try {
+    await setDue(chapterId, lessonIds, null)
+  } catch (err) {
+    alert(`마감일을 못 바꿨어요: ${(err as Error).message}`)
+  }
+}
+
 function Lessons({ rows }: { rows: LessonRow[] }) {
   const chapters = [...new Map(rows.map((x) => [x.chapter.id, x.chapter])).values()]
   return (
     <>
-      {chapters.map((ch) => (
-        <section key={ch.id} className="group">
-          <p className="section-label">
-            레슨 · {formatDate(ch.date)} 수업 · {formatDate(rows.find((x) => x.chapter.id === ch.id)!.dueBy)}까지
-          </p>
-          <div className="group-card">
-            <div className="row t-chapter">
-              <b>{ch.title}</b>
-            </div>
-            {rows
-              .filter((x) => x.chapter.id === ch.id)
-              .map((x) => (
-                <div key={x.lesson.id} className="row">
+      {chapters.map((ch) => {
+        const mine = rows.filter((x) => x.chapter.id === ch.id)
+        const ids = mine.map((x) => x.lesson.id)
+        const same = mine.every((x) => x.dueBy === mine[0].dueBy) ? mine[0].dueBy : ''
+        const anyCustom = mine.some((x) => x.dueCustom)
+        return (
+          <section key={ch.id} className="group">
+            <p className="section-label">레슨 · {formatDate(ch.date)} 수업</p>
+            <div className="group-card">
+              <div className="row t-chapter">
+                <span className="row-text">
+                  <b>{ch.title}</b>
+                  <span className="t-due-line">
+                    <span className="sub">챕터 전체 마감</span>
+                    <DueInput value={same} label={`${ch.title} 전체 마감일`} onPick={(day) => setDue(ch.id, ids, day)} />
+                    {anyCustom && (
+                      <button type="button" className="link small" onClick={() => void resetDue(ch.id, ids)}>
+                        기본으로
+                      </button>
+                    )}
+                  </span>
+                </span>
+              </div>
+              {mine.map((x) => (
+                <div key={x.lesson.id} className="row t-lesson">
                   <span className="row-text">
                     {x.lesson.title}
                     <span className="sub">
                       {x.stages.map((st) => `${st.done ? '✓' : '·'} ${st.title.split(' ')[0]}`).join('  ')}
                       {x.quiz ? `  · 퀴즈 최고 ${x.quiz.best}/${x.quiz.total}` : ''}
+                    </span>
+                    <span className="t-due-line">
+                      <span className="sub">마감</span>
+                      <DueInput value={x.dueBy} label={`${x.lesson.title} 마감일`} onPick={(day) => setDue(ch.id, [x.lesson.id], day)} />
+                      {x.dueCustom ? (
+                        <button type="button" className="link small" onClick={() => void resetDue(ch.id, [x.lesson.id])}>
+                          기본으로
+                        </button>
+                      ) : (
+                        <span className="sub">기본</span>
+                      )}
                     </span>
                   </span>
                   {x.done === x.total ? (
@@ -269,9 +329,11 @@ function Lessons({ rows }: { rows: LessonRow[] }) {
                   )}
                 </div>
               ))}
-          </div>
-        </section>
-      ))}
+            </div>
+          </section>
+        )
+      })}
+      <p className="group-foot">마감일은 모든 학생에게 같아요. 정하지 않은 레슨은 수업 {LESSON_GRACE_DAYS}일 뒤가 마감이에요.</p>
     </>
   )
 }
@@ -322,19 +384,32 @@ function Tests({ r }: { r: Report }) {
   )
 }
 
+const SCOPE: Record<string, string> = { lesson: '레슨', word: '단어', general: '그냥 메모' }
+
 function Notes({ r }: { r: Report }) {
   return (
     <section className="group">
-      <p className="section-label">답 안 한 메모 · {r.notesNew.length}</p>
+      <p className="section-label">
+        메모 {r.notes.length}개{r.notesNew.length ? ` · 답 안 한 것 ${r.notesNew.length}` : ''}
+      </p>
       <div className="group-card">
-        {r.notesNew.map((n) => (
-          <div key={n.id} className="row">
+        {r.notes.map((n) => (
+          <div key={n.id} className={`row t-note ${n.status}`}>
             <span className="row-text">
               <span className="t-note-head">
                 <Pill tone={n.kind === 'confusing' ? 'behind' : 'blue'}>{n.kind === 'confusing' ? '헷갈림' : '중요'}</Pill>
-                <b>{n.lesson_title}</b>
+                <span className="t-scope">{SCOPE[n.scope ?? 'lesson']}</span>
+                {n.status === 'done' ? <span className="t-done">답함</span> : <span className="t-new">새 메모</span>}
               </span>
-              <span className="sub">{n.question ?? n.point}</span>
+              <span className="t-where">{noteAbout(n)}</span>
+              <span className="t-note-body">{n.point}</span>
+              {n.question && <span className="t-note-q">{n.question}</span>}
+              {n.example && <span className="t-note-ex en-serif">{n.example}</span>}
+              {n.reply && <span className="t-note-reply">답장: {n.reply}</span>}
+              <span className="sub">
+                {formatDate(today(new Date(n.created_at)))} {new Date(n.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                {n.place ? ` · ${n.place}에서 씀` : ''}
+              </span>
             </span>
           </div>
         ))}

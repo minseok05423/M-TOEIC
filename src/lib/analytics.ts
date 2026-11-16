@@ -21,7 +21,7 @@ export const REVIEW_OVERDUE_MAX = 30
 export const CALENDAR_DAYS = 14
 
 export const RULES = [
-  `레슨: 수업 ${LESSON_GRACE_DAYS}일 뒤까지 4단계 모두`,
+  `레슨: 마감일까지 4단계 모두 (선생님이 안 정했으면 수업 ${LESSON_GRACE_DAYS}일 뒤)`,
   `공부: ${STUDY_GAP_DAYS}일 넘게 쉬지 않기`,
   `단어 테스트: ${TEST_GAP_DAYS}일 넘게 거르지 않기`,
   `복습: 날짜 지난 단어 ${REVIEW_OVERDUE_MAX}개 이하`,
@@ -36,8 +36,45 @@ export interface StudentRaw {
   progressAt?: string
   words: { en: string; ko: string; deck: string; created_at: string; deleted: boolean }[]
   tests: { day: string; score: number; total: number; items: WordTestItem[]; finished_at: string }[]
-  notes: { id: string; status: 'new' | 'done'; kind: 'important' | 'confusing'; lesson_title: string; point: string; question: string | null; level: number | null; created_at: string }[]
+  notes: NoteRaw[]
   chapters: Chapter[]
+  /** 선생님이 정한 마감일 (key: 'chapterId/lessonId' → 'YYYY-MM-DD'). 모든 학생 공통 */
+  due?: Record<string, string>
+}
+
+/** DB 표 lesson_notes 한 줄 (선생님 화면에서 쓰는 칸만) */
+export interface NoteRaw {
+  id: string
+  status: 'new' | 'done'
+  kind: 'important' | 'confusing'
+  /** 무엇에 대한 메모: 레슨 · 단어 · 그냥 메모 (예전 메모는 없음 = 레슨) */
+  scope?: 'lesson' | 'word' | 'general' | null
+  /** 어느 화면에서 썼는지 (예: '실전 퀴즈', '단어장') */
+  place?: string | null
+  lesson_title: string | null
+  target_label?: string | null
+  category?: string | null
+  point: string
+  question: string | null
+  example?: string | null
+  level: number | null
+  reply?: string | null
+  created_at: string
+}
+
+/** 메모가 무엇에 대한 것인지 한 줄로: "레슨 · 문장의 5형식 · 퀴즈 3번" / "단어 · postpone · 연기하다" / "그냥 메모" */
+export function noteAbout(n: { scope?: string | null; lesson_title?: string | null; target_label?: string | null }): string {
+  if (n.scope === 'general') return '그냥 메모'
+  if (n.scope === 'word') return `단어 · ${n.target_label ?? ''}`
+  return `레슨 · ${n.lesson_title ?? ''} · ${n.target_label ?? '레슨 전체'}`
+}
+
+export const dueKey = (chapterId: string, lessonId: string) => `${chapterId}/${lessonId}`
+
+/** 레슨 마감일: 선생님이 정한 날, 없으면 수업 날 + LESSON_GRACE_DAYS */
+export function lessonDue(due: Record<string, string> | undefined, chapter: Pick<Chapter, 'id' | 'date'>, lessonId: string): { day: string; custom: boolean } {
+  const set = due?.[dueKey(chapter.id, lessonId)]
+  return set ? { day: set, custom: true } : { day: addDays(chapter.date, LESSON_GRACE_DAYS), custom: false }
 }
 
 export interface LessonRow {
@@ -49,6 +86,8 @@ export interface LessonRow {
   quiz?: { best: number; total: number }
   /** 이날까지 끝내야 함 */
   dueBy: string
+  /** 선생님이 정한 마감일인지 (아니면 수업 날 + LESSON_GRACE_DAYS) */
+  dueCustom: boolean
   overdue: boolean
 }
 
@@ -78,7 +117,9 @@ export interface Report {
   missedOften: { en: string; ko: string; n: number }[]
   wordsTotal: number
   words7: number
-  notesNew: StudentRaw['notes']
+  notesNew: NoteRaw[]
+  /** 모든 메모: 답 안 한 것 먼저, 그다음 최근 것부터 */
+  notes: NoteRaw[]
 }
 
 /** 기본 챕터 + 이 학생의 맞춤 챕터 (id 가 같으면 맞춤이 대신함). 앱의 lib/content.ts 와 같은 규칙 */
@@ -111,7 +152,7 @@ export function analyze(s: StudentRaw, today = todayOf()): Report {
   const week = new Set(Array.from({ length: 7 }, (_, i) => addDays(today, -i)))
   const studied7 = studiedDays.filter((d) => week.has(d)).length
 
-  // 레슨: 수업 날짜 + LESSON_GRACE_DAYS 까지 4단계
+  // 레슨: 마감일 (선생님이 정한 날, 없으면 수업 날짜 + LESSON_GRACE_DAYS) 까지 4단계
   const lessons: LessonRow[] = []
   for (const ch of s.chapters)
     for (const l of ch.lessons) {
@@ -119,7 +160,7 @@ export function analyze(s: StudentRaw, today = todayOf()): Report {
       const started = l.words.filter((w) => pr.srs?.[wordKey(w)]).length
       const st = stageList(l, lp, started)
       const done = st.filter((x) => x.done).length
-      const dueBy = addDays(ch.date, LESSON_GRACE_DAYS)
+      const { day: dueBy, custom: dueCustom } = lessonDue(s.due, ch, l.id)
       lessons.push({
         chapter: ch,
         lesson: l,
@@ -128,6 +169,7 @@ export function analyze(s: StudentRaw, today = todayOf()): Report {
         stages: st.map((x) => ({ title: x.title, done: x.done })),
         quiz: lp?.quizTotal ? { best: lp.quizBest ?? 0, total: lp.quizTotal } : undefined,
         dueBy,
+        dueCustom,
         overdue: done < st.length && dueBy < today,
       })
     }
@@ -191,5 +233,6 @@ export function analyze(s: StudentRaw, today = todayOf()): Report {
     wordsTotal: words.length,
     words7: words.filter((w) => week.has(dayOf(w.created_at))).length,
     notesNew: s.notes.filter((n) => n.status === 'new').sort((a, b) => b.created_at.localeCompare(a.created_at)),
+    notes: [...s.notes].sort((a, b) => (a.status === b.status ? b.created_at.localeCompare(a.created_at) : a.status === 'new' ? -1 : 1)),
   }
 }

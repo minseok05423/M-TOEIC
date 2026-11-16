@@ -32,6 +32,7 @@ import { validateChapters } from '../src/content/validate.ts'
 import { plainText, tapPlain } from '../src/content/markup.ts'
 import type { Chapter, Lesson, PersonalMeta } from '../src/content/types.ts'
 import type { LessonProgress, Progress, WordTestItem } from '../src/lib/store.ts'
+import { dueKey, lessonDue } from '../src/lib/analytics.ts'
 
 for (const f of ['.env.local', '.env']) if (existsSync(f)) process.loadEnvFile(f)
 const url = process.env.VITE_SUPABASE_URL?.replace(/\/$/, '')
@@ -144,12 +145,18 @@ async function notes() {
     const chapters = await chaptersFor(u.id)
     console.log(`\n# 학생 ${u.email} — 메모 ${mine.length}개\n`)
     for (const n of mine) {
-      const ch = chapters.find((c) => c.id === n.chapter_id)
+      const scope: 'lesson' | 'word' | 'general' = n.scope ?? 'lesson'
+      const ch = scope === 'lesson' ? chapters.find((c) => c.id === n.chapter_id) : undefined
       const lesson = ch?.lessons.find((l) => l.id === n.lesson_id)
-      console.log(`## [${n.kind === 'important' ? '중요한 점' : '헷갈리는 점'}] ${n.lesson_title} (${n.chapter_id}/${n.lesson_id})`)
+      const kind = n.kind === 'important' ? '중요한 점' : '헷갈리는 점'
+      const about =
+        scope === 'general' ? '그냥 메모' : scope === 'word' ? `단어 ${n.target_label}` : `${n.lesson_title} (${n.chapter_id}/${n.lesson_id})`
+      console.log(`## [${kind}] ${about}`)
       console.log(`- id: ${n.id}`)
       console.log(`- 날짜: ${n.created_at.slice(0, 16).replace('T', ' ')} · 상태: ${n.status}${n.reply ? ` · 답장: ${n.reply}` : ''}`)
-      console.log(`- 위치: ${n.stage}${n.target_id ? ` · ${n.target_id} (${n.target_label})` : ' · 레슨 전체'}`)
+      if (n.place) console.log(`- 쓴 화면: ${n.place}`)
+      if (scope === 'lesson') console.log(`- 위치: ${n.stage}${n.target_id ? ` · ${n.target_id} (${n.target_label})` : ' · 레슨 전체'}`)
+      else if (scope === 'word') console.log(`- 단어 key: ${String(n.target_id ?? '').replace(/^words:/, '')}`)
       if (n.kind === 'confusing') {
         console.log(`- 막힌 곳: ${CAT[n.category] ?? n.category} · 정도: ${LEVEL[n.level] ?? n.level}`)
         console.log(`- 학생이 이해한 것: ${n.point}`)
@@ -159,7 +166,7 @@ async function notes() {
       if (lesson) {
         console.log('- 지금 레슨 내용:')
         for (const l of describeTarget(lesson, n.target_id)) console.log(`    ${l}`)
-      } else console.log('- (이 레슨을 지금 콘텐츠에서 찾을 수 없음: 지워졌거나 id 가 바뀜)')
+      } else if (scope === 'lesson') console.log('- (이 레슨을 지금 콘텐츠에서 찾을 수 없음: 지워졌거나 id 가 바뀜)')
       console.log()
     }
   }
@@ -329,12 +336,15 @@ async function progress() {
   const user = await pickUser()
   const n = days('days', 14)
   const t = kday()
-  const [p, w, tests, chapterList] = await Promise.all([
+  const [p, w, tests, chapterList, dueRows] = await Promise.all([
     db.from('progress').select('data, updated_at').eq('user_id', user.id).maybeSingle(),
     db.from('custom_words').select('en, created_at, deleted, important').eq('user_id', user.id),
     loadTests(user.id),
     chaptersFor(user.id),
+    db.from('lesson_due').select('chapter_id, lesson_id, due'),
   ])
+  if (dueRows.error) die(dueRows.error.message)
+  const dueMap = Object.fromEntries((dueRows.data ?? []).map((r) => [dueKey(r.chapter_id, r.lesson_id), r.due as string]))
   if (p.error) die(p.error.message)
   if (w.error) die(w.error.message)
   const pr = (p.data?.data ?? { lessons: {}, srs: {}, days: {} }) as Progress
@@ -359,7 +369,8 @@ async function progress() {
       if (l.words.length) parts.push(stage(!!lp?.cards || started === l.words.length, `단어 ${started}/${l.words.length}`))
       parts.push(stage(lp?.sentences, '뼈대'))
       parts.push(lp?.quizTotal ? `✓퀴즈 최고 ${lp.quizBest}/${lp.quizTotal} · 마지막 ${lp.quizLast}/${lp.quizTotal}${lp.wrong?.length ? ` (틀림 ${lp.wrong.join(',')})` : ''}` : '·퀴즈')
-      console.log(`  - ${l.title} (${l.id}): ${parts.join('  ')}${lp ? `  · ${kday(lp.u)}` : '  · 시작 안 함'}`)
+      const dl = lessonDue(dueMap, ch, l.id)
+      console.log(`  - ${l.title} (${l.id}): ${parts.join('  ')}${lp ? `  · ${kday(lp.u)}` : '  · 시작 안 함'}  · 마감 ${dl.day}${dl.custom ? ' (선생님이 정함)' : ''}`)
     }
   }
 

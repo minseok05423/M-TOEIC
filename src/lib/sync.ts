@@ -95,9 +95,11 @@ const toRow = (w: CustomWord, userId: string) => ({
 
 interface NoteRow {
   id: string
-  chapter_id: string
-  lesson_id: string
-  lesson_title: string
+  scope: LessonNote['scope'] | null
+  place: string | null
+  chapter_id: string | null
+  lesson_id: string | null
+  lesson_title: string | null
   stage: LessonNote['stage']
   target_id: string | null
   target_label: string | null
@@ -115,9 +117,11 @@ interface NoteRow {
 const noteToRow = (n: LessonNote, userId: string) => ({
   id: n.id,
   user_id: userId,
-  chapter_id: n.chapterId,
-  lesson_id: n.lessonId,
-  lesson_title: n.lessonTitle,
+  scope: n.scope ?? 'lesson',
+  place: n.place ?? null,
+  chapter_id: n.chapterId ?? null,
+  lesson_id: n.lessonId ?? null,
+  lesson_title: n.lessonTitle ?? null,
   stage: n.stage,
   target_id: n.targetId ?? null,
   target_label: n.targetLabel ?? null,
@@ -132,9 +136,11 @@ const noteToRow = (n: LessonNote, userId: string) => ({
 
 const rowToNote = (r: NoteRow): LessonNote => ({
   id: r.id,
-  chapterId: r.chapter_id,
-  lessonId: r.lesson_id,
-  lessonTitle: r.lesson_title,
+  scope: r.scope ?? 'lesson',
+  place: r.place ?? undefined,
+  chapterId: r.chapter_id ?? undefined,
+  lessonId: r.lesson_id ?? undefined,
+  lessonTitle: r.lesson_title ?? undefined,
   stage: r.stage,
   targetId: r.target_id ?? undefined,
   targetLabel: r.target_label ?? undefined,
@@ -228,12 +234,13 @@ export async function syncNow(): Promise<void> {
   setStatus({ state: 'syncing' })
   try {
     // 1) 가져오기
-    const [p, w, n, c, t] = await Promise.all([
+    const [p, w, n, c, t, d] = await Promise.all([
       supabase.from('progress').select('data').eq('user_id', userId).maybeSingle(),
       supabase.from('custom_words').select('*').eq('user_id', userId),
       supabase.from('lesson_notes').select('*').eq('user_id', userId),
       supabase.from('user_chapters').select('chapter').eq('user_id', userId),
       supabase.from('word_tests').select('id, day, items, score, total, started_at, finished_at').eq('user_id', userId),
+      supabase.from('lesson_due').select('chapter_id, lesson_id, due'),
     ])
     if (p.error) throw p.error
     if (w.error) throw w.error
@@ -254,6 +261,8 @@ export async function syncNow(): Promise<void> {
         notes: mergeNotes(s.notes, n.data as NoteRow[]),
         tests: mergeTests(s.tests, t.data as TestRow[]),
         userChapters: JSON.stringify(chapters) === JSON.stringify(s.userChapters) ? s.userChapters : chapters,
+        // 마감일은 선생님 것이라 서버가 정답 (못 받으면 전에 받은 것 그대로)
+        due: d.error ? s.due : Object.fromEntries((d.data ?? []).map((r) => [`${r.chapter_id}/${r.lesson_id}`, r.due as string])),
       }),
       { fromSync: true },
     )

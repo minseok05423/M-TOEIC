@@ -15,6 +15,7 @@ import { WordForm } from './screens/WordForm.tsx'
 import { BulkAdd } from './screens/BulkAdd.tsx'
 import { WordTest } from './screens/WordTest.tsx'
 import { Part1 } from './screens/Part1.tsx'
+import { Notes } from './screens/Notes.tsx'
 import { StudentPage, TeacherHome } from './screens/Teacher.tsx'
 import { isTeacher } from './lib/teacher.ts'
 import { Settings } from './screens/Settings.tsx'
@@ -72,6 +73,7 @@ function Main({ session }: { session: Session | null }) {
   else if (a === 'review') screen = <Review />
   else if (a === 'test') screen = <WordTest />
   else if (a === 'part1') screen = <Part1 />
+  else if (a === 'notes') screen = <Notes />
   else if (a === 'words' && b === 'new') screen = <WordForm key="new" />
   else if (a === 'words' && b === 'bulk') screen = <BulkAdd />
   else if (a === 'words' && b === 'edit' && c) screen = <WordForm key={c} id={c} />

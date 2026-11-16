@@ -101,10 +101,12 @@ The script needs `SUPABASE_SECRET_KEY=sb_secret_...` in `.env.local` (Project Se
 
 ## Teacher account
 
-An account whose `app_metadata.role` is `teacher` sees **학생 현황** instead of the student screens: every student, the ones falling behind first, and a page per student with what is behind and why, the last 14 days (study, word test score, words added), every lesson's stages, recent tests, words missed twice or more, and unanswered notes. A student is **behind** when a lesson isn't finished 2 days after its class, they haven't studied or taken a word test for 2 days, or more than 30 review words are overdue (`src/lib/analytics.ts`, shown on the screen too).
+An account whose `app_metadata.role` is `teacher` sees **학생 현황** instead of the student screens: every student, the ones falling behind first, and a page per student with what is behind and why, the last 14 days (study, word test score, words added), every lesson's stages, recent tests, words missed twice or more, and unanswered notes. A student is **behind** when a lesson isn't finished by its due date, they haven't studied or taken a word test for 2 days, or more than 30 review words are overdue (`src/lib/analytics.ts`, shown on the screen too).
 
 - Make an account a teacher: `npm run teacher -- role <email> teacher`, then log out and back in in the app. Only the secret key can change `app_metadata`, so a student can't make themselves a teacher.
 - The database lets teachers **read** every student's rows and nothing else (`supabase/schema.sql` part 11, function `teacher_students()` for the student list). Writing (replies, personal chapters, words) still goes through `npm run teacher`.
+- **Due dates:** each lesson is due 2 days after its class unless the teacher picks a date on the student page (per lesson, or a whole chapter at once; **기본으로** goes back to the default). Due dates are stored in `lesson_due` (`supabase/schema.sql` part 13), are the same for every student, and students see them on 홈 (red once late). This is the only thing the teacher account can write.
+- **Notes:** students can leave a note on a lesson (any card, word, sentence or quiz question in it), on a single word (단어장, the word-test "다시 볼 단어" list, the review game) or a general note (홈 → 내 메모). Each note records what it is about (`scope`: lesson · word · general) and the screen it was written on (`place`). The student page lists every note, unanswered first, with both. Replies still go through `npm run teacher -- notes` / `done --reply`.
 - The teacher account doesn't sync its own progress. Students' data shows up when their phone syncs (when the app opens or comes back to the foreground).
 
 Students can sign up themselves on **회원가입** (`#/signup`); see Supabase setup step 3.

@@ -49,14 +49,21 @@ export interface CustomWord {
 export type NoteKind = 'important' | 'confusing'
 export type NoteCategory = 'meaning' | 'structure' | 'grammar' | 'answer' | 'other'
 export type NoteStage = 'lesson' | 'learn' | 'words' | 'sentences' | 'quiz'
+/** 무엇에 대한 메모: 레슨 (안의 한 곳) · 단어 하나 · 그냥 메모 */
+export type NoteScope = 'lesson' | 'word' | 'general'
 
 export interface LessonNote {
   id: string
-  chapterId: string
-  lessonId: string
-  lessonTitle: string
+  /** 없으면 'lesson' (예전 메모) */
+  scope?: NoteScope
+  /** 어느 화면에서 썼는지 (선생님이 봄). 예: '실전 퀴즈', '단어장', '내 메모' */
+  place?: string
+  /** 레슨 메모만 */
+  chapterId?: string
+  lessonId?: string
+  lessonTitle?: string
   stage: NoteStage
-  /** 'learn:s2' · 'words:w:agenda' · 'sentences:s1' · 'quiz:q3'. 없으면 레슨 전체 */
+  /** 'learn:s2' · 'words:w:agenda' · 'sentences:s1' · 'quiz:q3' (단어 메모는 'words:<단어 key>'). 없으면 레슨 전체 */
   targetId?: string
   targetLabel?: string
   kind: NoteKind
@@ -126,6 +133,8 @@ export interface State {
   tests: Record<string, WordTest>
   /** 이 학생에게만 보이는 맞춤 챕터 (서버 user_chapters 의 사본. 오프라인에서도 보이게 저장) */
   userChapters: Chapter[]
+  /** 선생님이 정한 레슨 마감일 (서버 lesson_due 의 사본, key 'chapterId/lessonId'). 없으면 수업 날 + 2일 */
+  due: Record<string, string>
   settings: Settings
 }
 
@@ -145,13 +154,14 @@ function load(): State {
         notes: s.notes ?? {},
         tests: s.tests ?? {},
         userChapters: s.userChapters ?? [],
+        due: s.due ?? {},
         settings: { ...defaultSettings, ...s.settings },
       }
     }
   } catch {
     /* 손상된 저장 데이터는 무시 */
   }
-  return { progress: emptyProgress(), words: {}, notes: {}, tests: {}, userChapters: [], settings: defaultSettings }
+  return { progress: emptyProgress(), words: {}, notes: {}, tests: {}, userChapters: [], due: {}, settings: defaultSettings }
 }
 
 let state: State = load()
