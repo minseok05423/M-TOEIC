@@ -13,7 +13,7 @@ import type { StudyWord } from '../lib/words.ts'
 import { getState, reviewWord } from '../lib/store.ts'
 import { speak, ttsSupported } from '../lib/tts.ts'
 import { sfx } from '../lib/sfx.ts'
-import { distractors, shuffle } from '../lib/game.ts'
+import { distractorPicker, oneSense, shuffle, type DistractorPicker } from '../lib/game.ts'
 import { answer as ans, layout, motion, type as t } from '../ui/styles.ts'
 import { RunHead, Screen } from './Screen.tsx'
 import { Speak } from './Speak.tsx'
@@ -23,7 +23,8 @@ import { Choice, choiceState, Feedback } from './Choice.tsx'
 type Kind = 'en2ko' | 'ko2en' | 'listen'
 type Step =
   | { t: 'intro'; w: StudyWord; batch: number }
-  | { t: 'q'; w: StudyWord; kind: Kind; choices: StudyWord[]; batch: number; retry?: boolean }
+  /** ans = 보기에 들어간 정답 (뜻이 여럿인 단어는 그중 하나, lib/game.ts oneSense) */
+  | { t: 'q'; w: StudyWord; ans: StudyWord; kind: Kind; choices: StudyWord[]; batch: number; retry?: boolean }
   | { t: 'match'; ws: StudyWord[]; batch: number }
 
 export interface GameResult {
@@ -35,15 +36,16 @@ export interface GameResult {
 
 const BATCH = 5
 
-function question(w: StudyWord, kind: Kind, pool: readonly StudyWord[], batch: number, retry?: boolean): Step {
-  return { t: 'q', w, kind, batch, retry, choices: shuffle([w, ...distractors(w, pool)]) }
+function question(w: StudyWord, kind: Kind, pick: DistractorPicker, batch: number, retry?: boolean): Step {
+  const ans = kind === 'en2ko' ? oneSense(w) : w
+  return { t: 'q', w, ans, kind, batch, retry, choices: shuffle([ans, ...pick(ans)]) }
 }
 
 function kinds(): Kind[] {
   return ttsSupported ? ['en2ko', 'ko2en', 'listen'] : ['en2ko', 'ko2en']
 }
 
-function build(words: StudyWord[], pool: readonly StudyWord[], isNew: (w: StudyWord) => boolean): Step[] {
+function build(words: StudyWord[], pick: DistractorPicker, isNew: (w: StudyWord) => boolean): Step[] {
   const steps: Step[] = []
   for (let b = 0; b * BATCH < words.length; b++) {
     const batch = words.slice(b * BATCH, b * BATCH + BATCH)
@@ -52,7 +54,7 @@ function build(words: StudyWord[], pool: readonly StudyWord[], isNew: (w: StudyW
     shuffle(batch).forEach((w, i) => {
       // 방금 처음 본 단어는 제일 쉬운 "뜻 고르기"부터
       const kind = isNew(w) ? 'en2ko' : ks[(i + b) % ks.length]
-      steps.push(question(w, kind, pool, b))
+      steps.push(question(w, kind, pick, b))
     })
     if (batch.length >= 3) steps.push({ t: 'match', ws: batch, batch: b })
   }
@@ -79,7 +81,9 @@ export function WordGame({
   /** 지금 단어의 메모 대상 id ('words:<key>', 짝 맞추기 중이면 undefined). 틀린 뒤면 confusing */
   onNote?: (targetId: string | undefined, confusing: boolean) => void
 }) {
-  const [steps, setSteps] = useState(() => build(words, pool, isNew))
+  // 오답 보기는 판 전체에서 고르게 돌려 써요 (lib/game.ts)
+  const [pick] = useState(() => distractorPicker(pool, words))
+  const [steps, setSteps] = useState(() => build(words, pick, isNew))
   const [pos, setPos] = useState(0)
   const [picked, setPicked] = useState<number | null>(null)
   const [combo, setCombo] = useState(0)
@@ -109,7 +113,7 @@ export function WordGame({
 
   // 정답이면 잠깐 보여 주고 자동으로 넘어가기
   useEffect(() => {
-    if (picked === null || step?.t !== 'q' || step.choices[picked] !== step.w) return
+    if (picked === null || step?.t !== 'q' || step.choices[picked] !== step.ans) return
     const t = setTimeout(next, 900)
     return () => clearTimeout(t)
   })
@@ -117,7 +121,7 @@ export function WordGame({
   function answer(i: number) {
     if (picked !== null || step?.t !== 'q') return
     setPicked(i)
-    const ok = step.choices[i] === step.w
+    const ok = step.choices[i] === step.ans
     const s = stats.current
     if (!step.retry && !s.seen.has(step.w.key)) {
       s.seen.add(step.w.key)
@@ -137,7 +141,7 @@ export function WordGame({
       sfx.wrong()
       // 같은 판이 끝나기 전에 다른 방식으로 한 번 더
       const ks = kinds().filter((k) => k !== step.kind)
-      const retry = question(step.w, ks[Math.floor(Math.random() * ks.length)], pool, step.batch, true)
+      const retry = question(step.w, ks[Math.floor(Math.random() * ks.length)], pick, step.batch, true)
       let j = pos + 1
       while (j < steps.length && steps[j].batch === step.batch && steps[j].t === 'q') j++
       setSteps([...steps.slice(0, j), retry, ...steps.slice(j)])
@@ -146,7 +150,7 @@ export function WordGame({
 
   if (!step) return null
   const progress = (pos + (picked !== null ? 1 : 0)) / steps.length
-  const ok = step.t === 'q' && picked !== null && step.choices[picked] === step.w
+  const ok = step.t === 'q' && picked !== null && step.choices[picked] === step.ans
 
   return (
     <Screen
@@ -251,7 +255,7 @@ function Question({ step, picked, onPick }: { step: Extract<Step, { t: 'q' }>; p
       </Center>
       <VStack gap={2}>
         {choices.map((c, i) => (
-          <Choice key={c.key} mark={`${i + 1}`} label={kind === 'en2ko' ? c.ko : c.en} state={choiceState(answered, c === w, i === picked)} onPick={() => onPick(i)}>
+          <Choice key={c.key} mark={`${i + 1}`} label={kind === 'en2ko' ? c.ko : c.en} state={choiceState(answered, c === step.ans, i === picked)} onPick={() => onPick(i)}>
             <Text type="large" weight="medium" xstyle={kind === 'en2ko' ? t.keepAll : t.en}>
               {kind === 'en2ko' ? c.ko : c.en}
             </Text>

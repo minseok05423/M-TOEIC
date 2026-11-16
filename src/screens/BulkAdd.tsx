@@ -15,21 +15,9 @@ import { getState, newId, saveWords, startWords, useStore } from '../lib/store.t
 import { decks } from '../lib/words.ts'
 import { go, href } from '../lib/router.ts'
 import { AppBar, Screen } from '../components/Screen.tsx'
-import { Meaning, takePos } from '../components/Pos.tsx'
+import { Meaning } from '../components/Pos.tsx'
+import { normEn, parseLine } from '../lib/wordline.ts'
 import { type as t } from '../ui/styles.ts'
-
-/**
- * 한 줄에 단어 하나. 구분: 탭 / = / : / " - " / 쉼표, 또는 구분 없이 "postpone 연기하다" (한글 앞에서 나눔)
- */
-export function parseLine(line: string): { en: string; ko: string; pos?: string } | null {
-  const tx = line.replace(/^\s*\d+\s*[.)]\s*/, '').trim()
-  if (!tx) return null
-  const m = tx.match(/^(.+?)\s*(?:\t|=|:|\s[-–—]\s|,)\s*(.+)$/) ?? tx.match(/^([^가-힣]+?)\s+([가-힣~(\[].*)$/)
-  if (!m) return null
-  const en = m[1].trim()
-  const ko = m[2].trim()
-  return en && ko && /[a-zA-Z]/.test(en) ? { en, ...takePos(ko) } : null
-}
 
 export function BulkAdd() {
   const words = useStore((s) => s.words)
@@ -38,8 +26,19 @@ export function BulkAdd() {
   const [deck, setDeck] = useState(getState().settings.lastDeck)
   const lines = text.split('\n').filter((l) => l.trim())
   const parsed = lines.map((l) => ({ line: l, w: parseLine(l) }))
-  const ok = parsed.filter((p) => p.w)
   const bad = parsed.filter((p) => !p.w)
+  // 이미 단어장에 있거나 붙여넣은 목록 안에서 겹치는 단어는 건너뜀 (같은 단어가 두 번 있으면 복습·테스트에 두 번 나와요)
+  const have = useMemo(() => new Map(Object.values(words).filter((w) => !w.deleted).map((w) => [normEn(w.en), w.deck])), [words])
+  const seen = new Set<string>()
+  const ok: typeof parsed = []
+  const dupes: { en: string; deck: string }[] = []
+  for (const p of parsed) {
+    if (!p.w) continue
+    const k = normEn(p.w.en)
+    if (have.has(k) || seen.has(k)) dupes.push({ en: p.w.en, deck: have.get(k) ?? '위 목록' })
+    else ok.push(p)
+    seen.add(k)
+  }
 
   function save() {
     const list = ok.map((p) => ({ id: newId(), en: p.w!.en, ko: p.w!.ko, pos: p.w!.pos, deck: deck.trim() || '내 단어' }))
@@ -60,6 +59,8 @@ export function BulkAdd() {
             <Code>postpone 연기하다</Code>
             <Code>postpone = 연기하다</Code>
             <Code>postpone - 연기하다</Code>
+            <Code>set up 설치하다, 설립하다</Code>
+            <Code>look forward to ~ing ~을 고대하다</Code>
           </HStack>
           <Text type="supporting">품사는 뜻 앞에 괄호로:</Text>
           <HStack gap={1} wrap="wrap">
@@ -105,6 +106,16 @@ export function BulkAdd() {
               ))}
             </VStack>
           </Banner>
+        )}
+        {dupes.length > 0 && (
+          <Banner
+            status="info"
+            title={`이미 있는 단어 ${dupes.length}개는 건너뛰어요`}
+            description={dupes
+              .slice(0, 8)
+              .map((d) => `${d.en} (${d.deck})`)
+              .join(', ') + (dupes.length > 8 ? ` 외 ${dupes.length - 8}개` : '')}
+          />
         )}
         {ok.length > 0 && (
           <List edge="outset"

@@ -111,3 +111,13 @@ export function planTest(
 
   return { items, latestDay, latestCount, newCount: fresh.length, reviewCount: review, why }
 }
+
+/** 이만큼 (서로 다른 테스트에서) 틀린 단어는 4지선다 대신 영어로 직접 써요. 고르기만 하면 알아보기만 해도 맞히니까 */
+export const TYPE_AFTER_MISSES = 2
+
+/** 직접 쓰기로 낼 단어 key (지금까지 테스트에서 TYPE_AFTER_MISSES 번 이상 틀렸거나 "모르겠어요") */
+export function typingKeys(tests: Record<string, WordTest>): Set<string> {
+  const n = new Map<string, number>()
+  for (const t of Object.values(tests)) for (const it of t.items) if (!it.ok) n.set(it.key, (n.get(it.key) ?? 0) + 1)
+  return new Set([...n].filter(([, c]) => c >= TYPE_AFTER_MISSES).map(([k]) => k))
+}

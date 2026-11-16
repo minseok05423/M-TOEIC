@@ -14,10 +14,11 @@ import { EmptyState } from '@astryxdesign/core/EmptyState'
 import { List, ListItem } from '@astryxdesign/core/List'
 import { Collapsible } from '@astryxdesign/core/Collapsible'
 import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
+import { TextInput } from '@astryxdesign/core/TextInput'
 import { newId, reviewWord, saveTest, useStore, type WordTest as Test, type WordTestItem } from '../lib/store.ts'
 import { allWords, lessonWordList, type StudyWord } from '../lib/words.ts'
-import { planTest, WHY_LABEL, type PlannedItem, type Why } from '../lib/wordtest.ts'
-import { distractors, shuffle, stars } from '../lib/game.ts'
+import { planTest, typingKeys, WHY_LABEL, type PlannedItem, type Why } from '../lib/wordtest.ts'
+import { checkTyped, distractorPicker, oneSense, shuffle, stars } from '../lib/game.ts'
 import { formatDate, today } from '../lib/date.ts'
 import { href } from '../lib/router.ts'
 import { speak } from '../lib/tts.ts'
@@ -42,6 +43,7 @@ export function WordTest() {
   const userChapters = useStore((s) => s.userChapters)
   const plan = useMemo(() => planTest(words, srs, tests, lessonWordList()), [words, srs, tests, userChapters])
   const pool = useMemo(() => [...allWords(words).values()], [words, userChapters])
+  const typing = useMemo(() => typingKeys(tests), [tests])
   const history = useMemo(() => Object.values(tests).sort((a, b) => b.finishedAt - a.finishedAt), [tests])
   const [run, setRun] = useState<{ items: PlannedItem[]; n: number } | null>(null)
   const [result, setResult] = useState<Test | null>(null)
@@ -52,6 +54,7 @@ export function WordTest() {
         key={run.n}
         items={run.items}
         pool={pool}
+        typing={typing}
         onDone={(x) => {
           saveTest(x)
           setResult(x)
@@ -144,7 +147,10 @@ export function WordTest() {
                 endContent={<Icon icon={ArrowRight} />}
                 onClick={() => setRun({ items: shuffle(plan.items), n: (run?.n ?? 0) + 1 })}
               />
-              <Text type="supporting">뜻을 고르는 4지선다예요. 모르면 찍지 말고 "모르겠어요"를 눌러요.</Text>
+              <Text type="supporting" xstyle={t.keepAll}>
+                뜻을 고르는 4지선다예요. 모르면 찍지 말고 "모르겠어요"를 눌러요.
+                {plan.items.some((x) => typing.has(x.w.key)) && ` 두 번 이상 틀린 단어 ${plan.items.filter((x) => typing.has(x.w.key)).length}개는 영어로 직접 써요.`}
+              </Text>
             </VStack>
           </Card>
         ) : (
@@ -199,30 +205,49 @@ export function WordTest() {
   )
 }
 
-type Q = PlannedItem & { choices: StudyWord[] }
+/** shown = 이 문제에서 묻는 뜻 (뜻이 여럿이면 하나, lib/game.ts oneSense). type = 영어로 직접 쓰기 */
+type Q = PlannedItem & { shown: StudyWord; choices: StudyWord[]; type: boolean }
+
+/** 답한 결과. pick = 고른 보기 번호, typed = 쓴 답, typo = 한 글자만 틀려서 정답으로 친 것 */
+type Answer = { ok: boolean; skip?: boolean; pick?: number; typed?: string; typo?: boolean }
 
 /** 한 단어에 한 번씩, 다시 풀기 없음. 답할 때마다 복습 기록(SRS)에도 반영 */
-function TestRun({ items, pool, onDone }: { items: PlannedItem[]; pool: StudyWord[]; onDone: (x: Test) => void }) {
-  const [qs] = useState<Q[]>(() => items.map((it) => ({ ...it, choices: shuffle([it.w, ...distractors(it.w, pool)]) })))
+function TestRun({ items, pool, typing, onDone }: { items: PlannedItem[]; pool: StudyWord[]; typing: Set<string>; onDone: (x: Test) => void }) {
+  const [qs] = useState<Q[]>(() => {
+    // 오답 보기는 테스트 전체에서 고르게 돌려 써요 (lib/game.ts)
+    const pick = distractorPicker(pool, items.map((it) => it.w))
+    return items.map((it) => {
+      const shown = oneSense(it.w)
+      const type = typing.has(it.w.key)
+      return { ...it, shown, type, choices: type ? [] : shuffle([shown, ...pick(shown)]) }
+    })
+  })
   const [pos, setPos] = useState(0)
-  /** 고른 보기 번호, -1 = 모르겠어요 */
-  const [picked, setPicked] = useState<number | null>(null)
+  const [res, setRes] = useState<Answer | null>(null)
+  const [text, setText] = useState('')
   const results = useRef<WordTestItem[]>([])
   const startedAt = useRef(Date.now())
   const advanced = useRef(-1)
   const q = qs[pos]
-  const ok = picked !== null && picked >= 0 && q.choices[picked] === q.w
 
-  function answer(i: number) {
-    if (picked !== null) return
-    setPicked(i)
-    const right = i >= 0 && q.choices[i] === q.w
-    results.current.push({ key: q.w.key, en: q.w.en, ko: q.w.ko, pos: q.w.pos, part: q.part, why: q.why, ok: right, skip: i < 0 || undefined })
-    reviewWord(q.w.key, right)
-    if (right) {
+  function finish(a: Answer) {
+    if (res) return
+    setRes(a)
+    results.current.push({ key: q.w.key, en: q.w.en, ko: q.w.ko, pos: q.w.pos, part: q.part, why: q.why, ok: a.ok, skip: a.skip || undefined })
+    reviewWord(q.w.key, a.ok)
+    if (a.ok) {
       sfx.right()
       speak(q.w.en)
     } else sfx.wrong()
+  }
+
+  const pickAnswer = (i: number) => finish({ ok: q.choices[i] === q.shown, pick: i })
+  const skip = () => finish({ ok: false, skip: true })
+  function submitTyped(e?: React.FormEvent) {
+    e?.preventDefault()
+    if (!text.trim()) return
+    const v = checkTyped(text, q.w.en)
+    finish({ ok: !!v, typed: text.trim(), typo: v === 'typo' })
   }
 
   function next() {
@@ -235,47 +260,92 @@ function TestRun({ items, pool, onDone }: { items: PlannedItem[]; pool: StudyWor
       return
     }
     setPos(pos + 1)
-    setPicked(null)
+    setRes(null)
+    setText('')
   }
 
+  // 정답이면 잠깐 보여 주고 넘어가기 (철자를 봐야 하는 typo 는 직접 넘기기)
   useEffect(() => {
-    if (!ok) return
+    if (!res?.ok || res.typo) return
     const tm = setTimeout(next, 800)
     return () => clearTimeout(tm)
   })
 
-  const answered = picked !== null
   return (
     <Screen
-      header={<RunHead exitHref="#/" progress={(pos + (answered ? 1 : 0)) / qs.length} count={`${pos + 1}/${qs.length}`} />}
+      header={<RunHead exitHref="#/" progress={(pos + (res ? 1 : 0)) / qs.length} count={`${pos + 1}/${qs.length}`} />}
       footer={
-        answered ? (
-          <WordFeedback w={q.w} ok={ok} skipped={picked! < 0} onNext={next} />
+        res ? (
+          <WordFeedback w={q.w} ok={res.ok} skipped={res.skip} onNext={next} />
+        ) : q.type ? (
+          <VStack gap={2}>
+            <Button label="확인" variant="primary" size="lg" width="100%" isDisabled={!text.trim()} onClick={() => submitTyped()} />
+            <Button label="모르겠어요" variant="secondary" size="lg" width="100%" icon={<Icon icon={CircleHelp} />} onClick={skip} />
+          </VStack>
         ) : (
-          <Button label="모르겠어요" variant="secondary" size="lg" width="100%" icon={<Icon icon={CircleHelp} />} onClick={() => answer(-1)} />
+          <Button label="모르겠어요" variant="secondary" size="lg" width="100%" icon={<Icon icon={CircleHelp} />} onClick={skip} />
         )
       }
     >
       <VStack gap={5} key={pos} xstyle={motion.rise}>
-        <HStack gap={2} vAlign="center">
+        <HStack gap={2} vAlign="center" wrap="wrap">
           {q.part === 'review' && <Token color="orange" label="복습" />}
-          <Heading level={2}>이 단어의 뜻은?</Heading>
+          {q.type && <Token color="purple" label="직접 쓰기" />}
+          <Heading level={2}>{q.type ? '영어로 써 보세요' : '이 단어의 뜻은?'}</Heading>
         </HStack>
-        <Center paddingBlock={4}>
-          <VStack gap={2} hAlign="center">
-            <BigWord en={q.w.en} />
-            <PosTag pos={q.w.pos} />
-          </VStack>
-        </Center>
-        <VStack gap={2}>
-          {q.choices.map((c, i) => (
-            <Choice key={c.key} mark={`${i + 1}`} label={c.ko} state={choiceState(answered, c === q.w, i === picked)} onPick={() => answer(i)}>
-              <Text type="large" weight="medium" xstyle={t.keepAll}>
-                {c.ko}
-              </Text>
-            </Choice>
-          ))}
-        </VStack>
+        {q.type ? (
+          <>
+            <Center paddingBlock={4}>
+              <VStack gap={2} hAlign="center">
+                <Heading level={1} type="display-3" justify="center" xstyle={t.keepAll}>
+                  {q.shown.ko}
+                </Heading>
+                <PosTag pos={q.shown.pos} />
+              </VStack>
+            </Center>
+            <form onSubmit={submitTyped}>
+              <TextInput
+                label="영어"
+                isLabelHidden
+                placeholder="영어로 쓰기"
+                value={text}
+                onChange={setText}
+                isDisabled={!!res}
+                autoComplete="off"
+                autoCapitalize="none"
+                hasAutoCorrect={false}
+                hasSpellCheck={false}
+                enterKeyHint="done"
+                status={
+                  res
+                    ? res.ok
+                      ? { type: 'success', message: res.typo ? `거의 맞았어요! 철자: ${q.w.en}` : '정답' }
+                      : { type: 'error', message: `정답: ${q.w.en}` }
+                    : undefined
+                }
+              />
+            </form>
+            <Text type="supporting">두 번 이상 틀린 단어라서 직접 써 봐요. 괄호 안은 써도 안 써도 돼요.</Text>
+          </>
+        ) : (
+          <>
+            <Center paddingBlock={4}>
+              <VStack gap={2} hAlign="center">
+                <BigWord en={q.w.en} />
+                <PosTag pos={q.shown.pos} />
+              </VStack>
+            </Center>
+            <VStack gap={2}>
+              {q.choices.map((c, i) => (
+                <Choice key={c.key} mark={`${i + 1}`} label={c.ko} state={choiceState(!!res, c === q.shown, i === res?.pick)} onPick={() => pickAnswer(i)}>
+                  <Text type="large" weight="medium" xstyle={t.keepAll}>
+                    {c.ko}
+                  </Text>
+                </Choice>
+              ))}
+            </VStack>
+          </>
+        )}
       </VStack>
     </Screen>
   )

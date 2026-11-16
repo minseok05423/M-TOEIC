@@ -5,11 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
-    "build": "npm run check-content && tsc --noEmit -p . && vite build",
+    "build": "npm run check-content && npm test && tsc --noEmit -p . && vite build",
     "preview": "vite preview --host",
     "check-content": "node scripts/check-content.ts",
     "check-supabase": "node scripts/check-supabase.ts",
-    "teacher": "node scripts/teacher.ts"
+    "teacher": "node scripts/teacher.ts",
+    "test": "node --test \"tests/*.test.ts\""
   },
   "dependencies": {
     "@astryxdesign/core": "^0.7.16",

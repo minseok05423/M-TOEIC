@@ -16,6 +16,7 @@ import { getState, resetProgress, setSettings, setState, useStore, type State } 
 import { mergeProgress, mergeWords } from '../lib/merge.ts'
 import { supabase } from '../lib/supabase.ts'
 import { syncNow, useSyncStatus } from '../lib/sync.ts'
+import { isTeacher } from '../lib/teacher.ts'
 import { speak, ttsSupported } from '../lib/tts.ts'
 import { useChapters } from '../lib/content.ts'
 import { today } from '../lib/date.ts'
@@ -91,7 +92,27 @@ export function Settings({ session }: { session: Session | null }) {
 
         <Group title="저장">
           <List edge="outset" hasDividers>
-            {!supabase || !session ? (
+            {session && isTeacher(session) ? (
+              <>
+                <ListItem startContent={<Icon icon={Cloud} />} label={session.user.email ?? '선생님'} description="선생님 계정 · 학생 기록을 읽기만 해요 (이 계정은 동기화 안 함)" />
+                <ListItem
+                  onClick={() =>
+                    confirm.show({
+                      title: '로그아웃할까요?',
+                      description: '다시 볼 때는 이메일과 비밀번호로 로그인해요.',
+                      actionLabel: '로그아웃',
+                      onAction: async () => {
+                        await supabase!.auth.signOut()
+                        setSettings({ skipLogin: false })
+                        confirm.hide()
+                      },
+                    })
+                  }
+                  startContent={<Icon icon={LogOut} />}
+                  label="로그아웃"
+                />
+              </>
+            ) : !supabase || !session ? (
               <>
                 <ListItem startContent={<Icon icon={HardDrive} />} label="이 기기에만 저장 중" description="브라우저 데이터를 지우면 사라지니 가끔 백업하세요" />
                 {supabase && (
@@ -185,6 +206,7 @@ export function Settings({ session }: { session: Session | null }) {
           />
         </Group>
 
+        {!isTeacher(session) && (
         <Group title="백업" foot="학습 기록과 내 단어를 파일로 저장하거나 불러와요. 불러오면 지금 기록과 합쳐져요.">
           <List edge="outset" hasDividers>
             <ListItem onClick={exportData} startContent={<Icon icon={Download} color="purple" />} label="파일로 내보내기" />
@@ -200,6 +222,7 @@ export function Settings({ session }: { session: Session | null }) {
             status={msg ? { type: msg.ok ? 'success' : 'error', message: msg.text } : undefined}
           />
         </Group>
+        )}
 
         <Group title="홈 화면에 추가">
           <List edge="outset" hasDividers>

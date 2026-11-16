@@ -17,15 +17,17 @@ When asked to handle the student's notes:
 The teacher sends a rough lesson topic almost every day and asks for progress and word-test checks.
 
 - **A topic** ("오늘은 분사구문"): write a new chapter in `src/content/chapters/YYYY-MM-DD/` following CONTENT_GUIDE.md. Fill in the explanation, words, sentences and quiz yourself from the topic. Run `npm run build`, then commit and push (Vercel redeploys from `main`). If the topic answers a student note, a personal chapter (above) may fit better.
-- **A progress check**: `npm run teacher -- progress`. Report in Korean: days studied, lessons and stages done, quiz scores, words added per day.
+- **A progress check**: `npm run teacher -- progress`. Report in Korean: days studied, lessons and stages done, quiz scores, words added per day. The teacher account also sees this in the app (학생 현황, rules in `src/lib/analytics.ts`); keep the two consistent.
 - **A word list** ("N일차 단어"): write `english | 품사 | 뜻` lines to a file in the scratchpad, fixing obvious typos and adding 품사 yourself. Run `npm run teacher -- words add <file> --deck N일차 --date <that day>`, then `npm run teacher -- words` to confirm. Day 1 is 2026-11-12, Day 2 is 2026-11-13, and the next lesson is Day 3.
 - **A word-test check**: `npm run teacher -- tests`. Report the scores, the words missed, and words missed twice or more. If a word keeps being missed, suggest `npm run teacher -- star <word>` or a lesson on it.
+
+With more than one student, teacher commands need `--user <email>`. Duplicate words: `npm run teacher -- words dupes` (plan), then `--apply` only after the user agrees, since it changes the student's word book.
 
 The student adds about 20 words a day themselves. The daily test is 20 newest + 10 review (see README "Daily word test"); the rules are in `src/lib/wordtest.ts`.
 
 ## UI
 
-The UI is Astryx (block below). Screens use `Screen` from `src/components/Screen.tsx`; the app's own styles live only in `src/ui/styles.ts` (tokens only). Change colours, fonts or corners through the `notebook` theme editor, not CSS. After a UI change: `npm run build`, then `npx astryx doctor --built dist`, and screenshot the changed screen at phone width (390px) in light and dark mode before committing.
+The UI is Astryx (block below). Screens use `Screen` from `src/components/Screen.tsx`; the app's own styles live only in `src/ui/styles.ts` (tokens only). Change colours, fonts or corners through the `notebook` theme editor, not CSS. `npm run build` runs `npm test` (tests/, Node's test runner); add a test when you change logic in `src/lib/`. After a UI change: `npm run build`, then `npx astryx doctor --built dist`, and screenshot the changed screen at phone width (390px) in light and dark mode before committing.
 
 Never put the secret key (`SUPABASE_SECRET_KEY`) in a `VITE_` variable or in app code. The Supabase MCP refuses write statements in non-interactive sessions, so writes go through `npm run teacher`.
 

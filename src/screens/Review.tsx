@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ArrowRight, BookOpen } from 'lucide-react'
+import { ArrowRight, BookOpen, Headphones } from 'lucide-react'
 import { VStack } from '@astryxdesign/core/VStack'
 import { HStack } from '@astryxdesign/core/HStack'
 import { Heading, Text } from '@astryxdesign/core/Text'
@@ -145,6 +145,16 @@ export function Review() {
             actions={<Button label="단어장 가기" variant="secondary" icon={<Icon icon={BookOpen} />} href={href('words')} />}
           />
         )}
+
+        <List edge="outset" hasDividers>
+          <ListItem
+            href={href('part1')}
+            startContent={<Icon icon={Headphones} color="accent" />}
+            label="토익 Part 1 사진 묘사 듣기"
+            description="장면을 보고 네 문장을 들은 뒤 맞는 것 고르기"
+            endContent={<Icon icon={ArrowRight} color="secondary" />}
+          />
+        </List>
 
         <MetadataList orientation="horizontal" label={{ position: 'top' }}>
           <MetadataListItem label="외우는 단어">

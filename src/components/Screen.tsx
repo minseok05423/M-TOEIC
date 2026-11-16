@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { BookOpen, ChevronLeft, Flame, House, NotebookPen, RotateCcw, Settings, X, type LucideIcon } from 'lucide-react'
+import { BookOpen, ChevronLeft, Flame, House, NotebookPen, RotateCcw, Settings, Users, X, type LucideIcon } from 'lucide-react'
 import { Layout, LayoutContent, LayoutFooter, LayoutHeader } from '@astryxdesign/core/Layout'
 import { HStack } from '@astryxdesign/core/HStack'
 import { StackItem } from '@astryxdesign/core/Stack'
@@ -13,6 +13,7 @@ import { Badge } from '@astryxdesign/core/Badge'
 import { go, useRoute } from '../lib/router.ts'
 import { useDueCount } from '../lib/words.ts'
 import { SCROLL_ROOT } from '../lib/ui.ts'
+import { teacherMode } from '../lib/teacher.ts'
 import { layout } from '../ui/styles.ts'
 
 /** 휴대폰 화면에서 본문이 너무 넓어지지 않게 (태블릿·PC 에서는 가운데 정렬) */
@@ -137,21 +138,28 @@ const TABS: { id: string; icon: LucideIcon; label: string }[] = [
   { id: 'settings', icon: Settings, label: '설정' },
 ]
 
+/** 선생님 계정의 탭 */
+const TEACHER_TABS: typeof TABS = [
+  { id: 'home', icon: Users, label: '학생 현황' },
+  { id: 'settings', icon: Settings, label: '설정' },
+]
+
 /** 아래 탭바 */
 function BottomNav() {
   const [a] = useRoute()
   const due = useDueCount()
-  const active = a === 'test' ? 'review' : a === 'review' || a === 'words' || a === 'settings' ? a : 'home'
+  const tabs = teacherMode ? TEACHER_TABS : TABS
+  const active = a === 'test' ? 'review' : tabs.some((x) => x.id === a) ? a : 'home'
   return (
     <LayoutFooter hasDivider padding={0} label="메뉴" xstyle={layout.safeBottom}>
       <TabList value={active} onChange={(v) => (v === 'home' ? go() : go(v))} layout="fill" size="lg">
-        {TABS.map(({ id, icon, label }) => (
+        {tabs.map(({ id, icon, label }) => (
           <Tab
             key={id}
             value={id}
             label={label}
             icon={<Icon icon={icon} />}
-            endContent={id === 'review' && due > 0 ? <Badge variant="error" label={due > 99 ? '99+' : `${due}`} /> : undefined}
+            endContent={id === 'review' && due > 0 && !teacherMode ? <Badge variant="error" label={due > 99 ? '99+' : `${due}`} /> : undefined}
           />
         ))}
       </TabList>
