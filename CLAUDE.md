@@ -25,6 +25,14 @@ With more than one student, teacher commands need `--user <email>`. Duplicate wo
 
 The student adds about 20 words a day themselves. The daily test is 20 newest + 10 review (see README "Daily word test"); the rules are in `src/lib/wordtest.ts`.
 
+## Cloud sessions (from the phone)
+
+The user often sends the daily topic from the Claude app (Code tab), which runs a cloud session on this GitHub repo. `scripts/cloud-setup.sh` (SessionStart hook in `.claude/settings.json`) installs Node 24 and runs `npm ci`; if `npm run build` fails with a Node version or "cannot find module" error, run `bash scripts/cloud-setup.sh` again.
+
+- Release = push to `main`. After `npm run build` passes, commit and run `git push origin HEAD:main` so Vercel deploys. Don't stop at a `claude/...` branch or a PR unless the user asks; Vercel only deploys `main` to the student.
+- `npm run teacher` needs `SUPABASE_SECRET_KEY`, which cloud sessions don't have (no `.env.local`). Without it, progress, tests, notes, word lists and personal-chapter pushes can't run. Say so in one line and suggest doing it from the codespace, or the 학생 현황 screen in the app for progress. Don't ask the user to paste the key into the chat.
+- The Supabase MCP isn't available there either.
+
 ## UI
 
 The UI is plain React with one hand-written stylesheet, `src/styles.css` ("수업 노트" look: paper, ink, highlighter yellow, red/green pen; colours are the tokens at its top, with a dark-mode block). The user tried an Astryx rewrite (branch `astryx-rewrite`) and preferred this design, so keep it. `npm run build` runs `npm test` (tests/, Node's test runner); add a test when you change logic in `src/lib/`. After a UI change, screenshot the changed screen at phone width (390px) in light and dark mode before committing.
