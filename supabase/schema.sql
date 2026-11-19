@@ -263,3 +263,60 @@ revoke all on public.lesson_due from anon, authenticated;
 grant select, insert, update, delete on public.lesson_due to authenticated;
 
 notify pgrst, 'reload schema';
+
+-- ═════════ 회화: 매일 작문 → AI 검수 → 선생님과 프리토킹 ═════════
+
+-- 14) 제출한 작문 + AI 검수 결과. 쓰기는 Edge Function(review-writing, 비밀 키)만 함
+--     → 학생은 자기 글을 읽기만, 선생님은 모두 읽기만. 고쳐 쓰고 싶으면 새 글로 다시 제출
+create table if not exists public.writings (
+  id uuid primary key,                         -- 앱에서 만든 id (응답을 못 받고 다시 보내도 한 번만 저장)
+  user_id uuid not null references auth.users on delete cascade,
+  day date not null,                           -- 쓴 날 (학생 휴대폰 기준)
+  topic text check (topic is null or char_length(topic) <= 100),
+  body text not null check (char_length(body) between 1 and 6000),
+  review jsonb not null,                       -- supabase/functions/review-writing/review.ts 의 Review
+  model text not null,
+  input_tokens integer not null default 0,
+  output_tokens integer not null default 0,
+  cost_usd numeric(10, 5) not null default 0,  -- 이달 예산 계산용 (REVIEW_MONTHLY_USD)
+  created_at timestamptz not null default now()
+);
+create index if not exists writings_user_created_idx on public.writings (user_id, created_at desc);
+create index if not exists writings_created_idx on public.writings (created_at);
+
+-- 15) 프리토킹 메모: 선생님이 앱에서 작문마다 남김. 학생은 자기 것을 읽음
+create table if not exists public.writing_talks (
+  writing_id uuid primary key references public.writings on delete cascade,
+  user_id uuid not null references auth.users on delete cascade,   -- 학생 (읽기 권한용)
+  note text not null default '' check (char_length(note) <= 2000),
+  talked_at timestamptz not null default now(),
+  updated_by uuid default auth.uid() references auth.users on delete set null,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.writings enable row level security;
+alter table public.writing_talks enable row level security;
+
+drop policy if exists "read own writings" on public.writings;
+create policy "read own writings" on public.writings for select to authenticated using ((select auth.uid()) = user_id);
+drop policy if exists "teacher reads writings" on public.writings;
+create policy "teacher reads writings" on public.writings for select to authenticated using ((select public.is_teacher()));
+
+drop policy if exists "read own talks" on public.writing_talks;
+create policy "read own talks" on public.writing_talks for select to authenticated using ((select auth.uid()) = user_id);
+drop policy if exists "teacher reads talks" on public.writing_talks;
+create policy "teacher reads talks" on public.writing_talks for select to authenticated using ((select public.is_teacher()));
+drop policy if exists "teacher adds talks" on public.writing_talks;
+create policy "teacher adds talks" on public.writing_talks for insert to authenticated with check (
+  (select public.is_teacher()) and exists (select 1 from public.writings w where w.id = writing_id and w.user_id = writing_talks.user_id)
+);
+drop policy if exists "teacher changes talks" on public.writing_talks;
+create policy "teacher changes talks" on public.writing_talks for update to authenticated
+  using ((select public.is_teacher()))
+  with check ((select public.is_teacher()) and exists (select 1 from public.writings w where w.id = writing_id and w.user_id = writing_talks.user_id));
+
+revoke all on public.writings, public.writing_talks from anon, authenticated;
+grant select on public.writings to authenticated;
+grant select, insert, update on public.writing_talks to authenticated;
+
+notify pgrst, 'reload schema';

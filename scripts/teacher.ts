@@ -17,6 +17,8 @@
  *                                         단어 넣기. 파일 한 줄: 영어 | 품사 | 뜻   (예: shade | 동사 / 명사 | 그늘지게 하다 / 그늘)
  *                                         --date 는 단어 테스트가 "그날 넣은 단어"로 보는 날짜 (기본: 오늘). 이미 있는 영어 단어는 건너뜀
  *   words pos "영어=품사" [...]             품사 고치기 (예: words pos "place=동사 / 명사")
+ *   writings [--days 14] [--user 이메일]   작문 + AI 검수: 글마다 점수·고칠 곳·오늘 기억할 것·프리토킹 여부,
+ *                                         그리고 자주 나오는 실수 종류 (레슨 주제 고를 때). 이번 달 검수 비용
  *   words dupes [--apply]                  같은 영어 단어가 두 번 이상 있는 것 정리 (기본은 계획만 출력).
  *                                         복습 기록이 가장 많은 것을 남기고 품사·N일차 묶음을 채운 뒤, 나머지는 삭제 표시 (deleted, 되돌릴 수 있음)
  *
@@ -33,6 +35,7 @@ import { plainText, tapPlain } from '../src/content/markup.ts'
 import type { Chapter, Lesson, PersonalMeta } from '../src/content/types.ts'
 import type { LessonProgress, Progress, WordTestItem } from '../src/lib/store.ts'
 import { dueKey, lessonDue } from '../src/lib/analytics.ts'
+import type { Review } from '../supabase/functions/review-writing/review.ts'
 
 for (const f of ['.env.local', '.env']) if (existsSync(f)) process.loadEnvFile(f)
 const url = process.env.VITE_SUPABASE_URL?.replace(/\/$/, '')
@@ -578,6 +581,51 @@ async function wordsPos(user: User) {
   }
 }
 
-const commands: Record<string, () => Promise<void>> = { notes, push, done, chapters, pull, rm, users, role, progress, tests, star, words }
+// ───────── 작문 (회화 탭) ─────────
+const ISSUE: Record<string, string> = { grammar: '문법', word: '단어', natural: '자연스러움', spelling: '철자', punctuation: '문장 부호', korean: '한국어로 씀' }
+
+async function writings() {
+  const user = await pickUser()
+  const n = days('days', 14)
+  const since = shift(kday(), -(n - 1))
+  const [w, t] = await Promise.all([
+    db.from('writings').select('id, day, topic, body, review, cost_usd, created_at').eq('user_id', user.id).gte('day', since).order('created_at'),
+    db.from('writing_talks').select('writing_id, note, talked_at').eq('user_id', user.id),
+  ])
+  if (w.error) die(w.error.message)
+  if (t.error) die(t.error.message)
+  const talks = new Map(t.data.map((x) => [x.writing_id as string, x]))
+  console.log(`# 작문 — ${user.email} (최근 ${n}일: ${w.data.length}편)\n`)
+  if (!w.data.length) console.log('이 기간에 제출한 작문이 없어요.')
+  const kinds = new Map<string, number>()
+  const focus = new Map<string, number>()
+  for (const x of w.data) {
+    const r = x.review as Review
+    const issues = r.sentences.flatMap((s) => s.issues)
+    for (const i of issues) kinds.set(i.type, (kinds.get(i.type) ?? 0) + 1)
+    for (const f of r.focus) focus.set(f.title, (focus.get(f.title) ?? 0) + 1)
+    const talk = talks.get(x.id)
+    const sc = r.scores
+    console.log(`## ${x.day}${x.topic ? ` · ${x.topic}` : ''} — ${r.sentences.length}문장, 고칠 곳 ${issues.length}개 · 짜임 ${sc.structure} 문법 ${sc.grammar} 단어 ${sc.words} 자연 ${sc.natural} · ${talk ? '프리토킹 함' : '프리토킹 전'}`)
+    console.log((x.body as string).split('\n').map((l) => `> ${l}`).join('\n'))
+    for (const s of r.sentences.filter((s) => s.issues.length))
+      console.log(`- ${s.original}  →  ${s.corrected}\n  ${s.issues.map((i) => `[${ISSUE[i.type] ?? i.type}] ${i.wrong} → ${i.right}: ${i.why}`).join('\n  ')}`)
+    if (r.focus.length) console.log(`- 오늘 기억할 것: ${r.focus.map((f) => f.title).join(' · ')}`)
+    if (talk?.note) console.log(`- 프리토킹 메모: ${talk.note}`)
+    console.log('')
+  }
+  if (w.data.length) {
+    console.log(`실수 종류 (많은 순): ${[...kinds].sort((a, b) => b[1] - a[1]).map(([k, v]) => `${ISSUE[k] ?? k} ${v}`).join(' · ') || '없음'}`)
+    console.log(`"오늘 기억할 것" 제목: ${[...focus].sort((a, b) => b[1] - a[1]).map(([k, v]) => (v > 1 ? `${k} ×${v}` : k)).join(' · ')}`)
+  }
+  const now = new Date()
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString()
+  const spent = await db.from('writings').select('cost_usd').gte('created_at', start)
+  if (spent.error) die(spent.error.message)
+  const usd = spent.data.reduce((a, r) => a + Number(r.cost_usd), 0)
+  console.log(`\n이번 달 AI 검수 비용 (모든 학생): $${usd.toFixed(3)} · ${spent.data.length}편`)
+}
+
+const commands: Record<string, () => Promise<void>> = { notes, push, done, chapters, pull, rm, users, role, progress, tests, star, words, writings }
 const run = commands[cmd ?? ''] ?? (() => die(`명령: ${Object.keys(commands).join(' | ')}  (자세한 건 scripts/teacher.ts 맨 위)`))
 await run()

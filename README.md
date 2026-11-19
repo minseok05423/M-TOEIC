@@ -11,7 +11,7 @@ The word list and the colour-coded sentence notes stay available as reference pa
 The student can also add their own words, which go into spaced-repetition review alongside the lesson words.
 
 - React 19 + Vite 8 + TypeScript. Routing is by URL hash, so the phone's back button works.
-- **Runtime AI cost: $0.** All content is written ahead of time into `src/content/`, and pronunciation uses the phone's built-in voice.
+- **Runtime AI cost: only the 회화 tab.** Lessons are written ahead of time into `src/content/`, and pronunciation uses the phone's built-in voice. The one live AI call is the writing review (below), capped at $2 a month for all students together.
 - Saving is local first (localStorage). If Supabase is configured, the app signs in and syncs progress and the student's own words across devices.
 - Works offline once loaded (`public/sw.js`), and can be added to the phone's home screen.
 
@@ -99,6 +99,22 @@ npm run teacher -- role <email> teacher|student         # make an account a teac
 
 The script needs `SUPABASE_SECRET_KEY=sb_secret_...` in `.env.local` (Project Settings → API Keys → Secret keys). The key bypasses Row Level Security, so it stays on your machine; the script never prints it. `push` runs the same checks as the build and uploads nothing if one fails. The app checks each personal chapter again and skips any broken one. No redeploy is needed: the student gets new chapters on the next sync.
 
+## 회화: daily writing → AI review → free talking
+
+The student practises speaking by writing a few English sentences every day, then talks about them with the teacher. The **회화** tab (`#/talk`) runs that loop:
+
+1. **Write** (`#/talk/write`): an optional topic (chips for ideas) and the text. Unknown words may be written in Korean (`I went to 은행.`); the review gives the English. The phone's autocorrect is off so the review sees the student's own spelling. The draft is saved on the phone as they type.
+2. **Final check**: "다 썼어요 · 검수 받기" opens **이게 최종본인가요?** with a short self-check (subject + verb in every sentence, past tense, capital + full stop). A submitted writing can't be changed; "더 고칠게요" goes back to editing.
+3. **AI review**: the Supabase Edge Function `review-writing` checks the login and limits, asks Claude for a structured review and saves the writing and review together in `writings`. It goes sentence by sentence (structure → tense, agreement, articles, prepositions, spelling → naturalness), and returns: a summary and four 1–5 scores, each sentence with its corrections and a short Korean reason per fix, **아쉬운 표현** (correct but unnatural), what went well, up to 3 recurring points (**오늘 기억할 것**), the corrected text and a natural rewrite (both readable aloud), and 3–5 **프리토킹** questions with Korean and a way to start the answer.
+4. **Read aloud**: the student listens to the corrected text and repeats it.
+5. **Free talking** with the teacher, using the questions. Afterwards the teacher opens the writing on the student's page (학생 현황 → student → 작문) and saves a 프리토킹 메모, which marks it done and shows on the student's review page.
+
+Prompt, response schema and cost table: `supabase/functions/review-writing/review.ts` (shared by the function, the app and `tests/writing.test.ts`). Database: `supabase/schema.sql` parts 14–15. Students can only read their writings; only the function writes them. Teachers read all writings and write `writing_talks`.
+
+**Setup** (once): in the Supabase dashboard → Edge Functions → Secrets, add `ANTHROPIC_API_KEY`. Optional secrets: `REVIEW_MODEL` (default `claude-opus-5-5`), `REVIEW_EFFORT` (`low`, the default, is about $0.06 and 20 s per review; `medium` is about $0.09 and 35 s), `REVIEWS_PER_DAY` (default 3 per student per 24 h), `REVIEW_MONTHLY_USD` (default 2, for all students together; when it runs out the student sees a message and the draft stays on the phone). The function is deployed with the Supabase MCP (`deploy_edge_function`, `verify_jwt: false`, since it checks the login itself; upload both `index.ts` and `review.ts`).
+
+`npm run teacher -- writings [--days 14] [--user <email>]` prints each writing with its corrections, the most common kinds of mistakes, and this month's review cost. Use it to pick lesson topics from mistakes that keep coming back.
+
 ## Teacher account
 
 An account whose `app_metadata.role` is `teacher` sees **학생 현황** instead of the student screens: every student, the ones falling behind first, and a page per student with what is behind and why, the last 14 days (study, word test score, words added), every lesson's stages, recent tests, words missed twice or more, and unanswered notes. A student is **behind** when a lesson isn't finished by its due date, they haven't studied or taken a word test for 2 days, or more than 30 review words are overdue (`src/lib/analytics.ts`, shown on the screen too).
@@ -142,6 +158,9 @@ src/lib/teacher.ts            teacher role + loading every student's data
 src/screens/Teacher.tsx       학생 현황 list and per-student page
 src/content/part1.ts          Part 1 listening drill items
 tests/                        unit tests (node --test)
-src/screens/                  Home, Lesson, Cards, Review, WordTest, Words, WordForm, BulkAdd, Part1, Teacher, Settings, Login (+ SignUp)
+src/screens/                  Home, Lesson, Cards, Review, WordTest, Words, WordForm, BulkAdd, Part1, Talk, Teacher, Settings, Login (+ SignUp)
+src/lib/writing.ts            회화 tab: draft on the phone, submit for review, writings + talk notes
+src/components/ReviewView.tsx one reviewed writing (student and teacher)
 supabase/schema.sql           tables + row-level security
+supabase/functions/review-writing/  Edge Function: AI writing review (index.ts) + prompt/schema/cost (review.ts)
 ```

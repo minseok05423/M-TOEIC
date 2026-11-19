@@ -5,6 +5,8 @@ import { CALENDAR_DAYS, LESSON_GRACE_DAYS, noteAbout, RULES, type LessonRow, typ
 import { formatDate, today } from '../lib/date.ts'
 import { href } from '../lib/router.ts'
 import { TopBar } from '../components/TopBar.tsx'
+import { ReviewView } from '../components/ReviewView.tsx'
+import { saveTalk, useStudentWritings, type Writing } from '../lib/writing.ts'
 
 const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토']
 const weekday = (day: string) => WEEKDAY[new Date(`${day}T12:00:00`).getDay()]
@@ -196,6 +198,7 @@ function Student({ s }: { s: StudentView }) {
       <Days r={r} />
       <Lessons rows={r.lessons} />
       <Tests r={r} />
+      <Writings studentId={s.raw.id} />
       {r.notes.length > 0 ? <Notes r={r} /> : <p className="small muted pad-x">아직 남긴 메모가 없어요.</p>}
       <Rules />
     </>
@@ -415,6 +418,119 @@ function Notes({ r }: { r: Report }) {
         ))}
       </div>
       <p className="group-foot">답하기: Claude Code 에서 "학생 메모 처리해 줘" (npm run teacher -- notes)</p>
+    </section>
+  )
+}
+
+const fixCount = (w: Writing) => w.review.sentences.reduce((a, x) => a + x.issues.length, 0)
+
+/** 학생 페이지: 작문 목록 (프리토킹 전인 것 먼저) */
+function Writings({ studentId }: { studentId: string }) {
+  const c = useStudentWritings(studentId)
+  if (c.state === 'loading') return null
+  if (c.state === 'error')
+    return (
+      <section className="group">
+        <p className="section-label">작문</p>
+        <ErrorBox error={c.error} />
+      </section>
+    )
+  const list = [...c.writings].sort((a, b) => Number(!!c.talks[a.id]) - Number(!!c.talks[b.id]) || b.created_at.localeCompare(a.created_at))
+  const waiting = list.filter((w) => !c.talks[w.id]).length
+  const spent = c.writings.reduce((a, w) => a + w.cost_usd, 0)
+  return (
+    <section className="group">
+      <p className="section-label">
+        작문 {c.writings.length}편{waiting ? ` · 프리토킹 전 ${waiting}` : ''}
+      </p>
+      {list.length ? (
+        <div className="group-card">
+          {list.map((w) => {
+            const sc = w.review.scores
+            return (
+              <a key={w.id} className="row" href={href('t', studentId, 'w', w.id)}>
+                <span className="row-text">
+                  <b>
+                    {formatDate(w.day)} {weekday(w.day)}
+                    {w.topic ? ` · ${w.topic}` : ''}
+                  </b>
+                  <span className="sub">
+                    {w.review.sentences.length}문장 · 고칠 곳 {fixCount(w)} · 짜임 {sc.structure} 문법 {sc.grammar} 단어 {sc.words} 자연 {sc.natural}
+                  </span>
+                </span>
+                {c.talks[w.id] ? <Pill tone="ok">대화 끝</Pill> : <Pill tone="behind">대화 전</Pill>}
+                <ChevronRight size={18} className="muted" />
+              </a>
+            )
+          })}
+        </div>
+      ) : (
+        <p className="small muted pad-x">아직 제출한 작문이 없어요.</p>
+      )}
+      {spent > 0 && <p className="group-foot">AI 검수 비용 (이 학생 전체): ${spent.toFixed(2)}</p>}
+    </section>
+  )
+}
+
+/** 선생님: 작문 한 편 + 프리토킹 메모 (#/t/<학생>/w/<작문>) */
+export function TeacherWriting({ studentId, id }: { studentId: string; id: string }) {
+  const c = useStudentWritings(studentId)
+  const w = c.state === 'ready' ? c.writings.find((x) => x.id === id) : undefined
+  const talk = c.state === 'ready' ? c.talks[id] : undefined
+  return (
+    <div className="page">
+      <TopBar back={href('t', studentId)} title="작문 검수" right={<Refresh busy={c.state === 'loading'} onClick={c.reload} />} />
+      {c.state === 'error' ? (
+        <ErrorBox error={c.error} />
+      ) : !w ? (
+        <p className="empty">{c.state === 'ready' ? '이 작문을 찾을 수 없어요.' : '불러오는 중…'}</p>
+      ) : (
+        <>
+          <TalkForm key={talk?.talked_at ?? 'new'} w={w} note={talk?.note ?? ''} done={!!talk} />
+          <ReviewView w={w} teacher />
+        </>
+      )}
+    </div>
+  )
+}
+
+function TalkForm({ w, note, done }: { w: Writing; note: string; done: boolean }) {
+  const [text, setText] = useState(note)
+  const [busy, setBusy] = useState(false)
+  const [saved, setSaved] = useState(false)
+  return (
+    <section className={`card t-talk ${done ? 'done' : ''}`}>
+      <p className="t-alert-title">{done ? <><CircleCheck size={18} /> 프리토킹 함</> : '프리토킹 메모'}</p>
+      <textarea
+        className="input"
+        rows={3}
+        maxLength={2000}
+        value={text}
+        onChange={(e) => {
+          setText(e.target.value)
+          setSaved(false)
+        }}
+        placeholder="대화하면서 본 것: 잘 말한 표현, 막힌 부분, 다음에 연습할 것. 학생도 봐요."
+      />
+      <button
+        type="button"
+        className="btn primary block"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true)
+          try {
+            await saveTalk(w, text)
+            setSaved(true)
+          } catch (e) {
+            alert(`저장하지 못했어요: ${(e as Error).message}`)
+          } finally {
+            setBusy(false)
+          }
+        }}
+      >
+        {busy ? '저장 중…' : done ? '메모 고치기' : '프리토킹 했어요 · 저장'}
+      </button>
+      {saved && <p className="small good">저장했어요. 학생 화면에도 보여요.</p>}
     </section>
   )
 }

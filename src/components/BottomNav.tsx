@@ -1,10 +1,11 @@
-import { BookOpen, House, RotateCcw, Settings, Users, type LucideIcon } from 'lucide-react'
+import { BookOpen, House, MessagesSquare, RotateCcw, Settings, Users, type LucideIcon } from 'lucide-react'
 import { href } from '../lib/router.ts'
 
 const ITEMS: { id: string; icon: LucideIcon; label: string }[] = [
   { id: '', icon: House, label: '홈' },
   { id: 'review', icon: RotateCcw, label: '복습' },
   { id: 'words', icon: BookOpen, label: '단어장' },
+  { id: 'talk', icon: MessagesSquare, label: '회화' },
   { id: 'settings', icon: Settings, label: '설정' },
 ]
 

@@ -10,6 +10,8 @@ import { stars } from '../lib/game.ts'
 import { stageList } from '../lib/stages.ts'
 import { lessonDue } from '../lib/analytics.ts'
 import { LogoMark } from '../components/Logo.tsx'
+import { supabase } from '../lib/supabase.ts'
+import { useMyWritings, writtenToday } from '../lib/writing.ts'
 
 const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토']
 
@@ -58,6 +60,8 @@ export function Home({ due }: { due: number }) {
   const dueDates = useStore((s) => s.due)
   const notes = useStore((s) => s.notes)
   const replies = useMemo(() => Object.values(notes).filter((n) => n.reply).length, [notes])
+  const mine = useMyWritings()
+  const wroteToday = mine.state === 'ready' || mine.state === 'error' ? writtenToday(mine.writings) : undefined
   const testToday = useMemo(
     () => Object.values(tests).filter((t) => t.day === today()).sort((a, b) => b.finishedAt - a.finishedAt)[0],
     [tests],
@@ -125,6 +129,16 @@ export function Home({ due }: { due: number }) {
           </span>
           {due > 0 && <ArrowRight className="todo-go" size={20} />}
         </a>
+        {supabase && (
+          <a className={`todo-item ${wroteToday ? 'done' : ''}`} href={wroteToday ? href('talk', 'w', wroteToday.id) : href('talk')}>
+            <span className="todo-box">{wroteToday && <Check size={16} strokeWidth={3.2} />}</span>
+            <span className="todo-text">
+              <span>{wroteToday ? '오늘 작문 검수 완료' : <>영어 작문 <b>5문장</b></>}</span>
+              <span className="todo-sub">{wroteToday ? '고친 글을 소리 내어 읽고 프리토킹 준비' : '쓰고 → AI 검수 → 선생님과 프리토킹'}</span>
+            </span>
+            {!wroteToday && <ArrowRight className="todo-go" size={20} />}
+          </a>
+        )}
         {up ? (
           <a className="todo-item" href={href('l', up.ch.id, up.l.id, up.stage.id)}>
             <span className="todo-box" />

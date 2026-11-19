@@ -16,7 +16,8 @@ import { BulkAdd } from './screens/BulkAdd.tsx'
 import { WordTest } from './screens/WordTest.tsx'
 import { Part1 } from './screens/Part1.tsx'
 import { Notes } from './screens/Notes.tsx'
-import { StudentPage, TeacherHome } from './screens/Teacher.tsx'
+import { StudentPage, TeacherHome, TeacherWriting } from './screens/Teacher.tsx'
+import { TalkHome, TalkView, TalkWrite } from './screens/Talk.tsx'
 import { isTeacher } from './lib/teacher.ts'
 import { Settings } from './screens/Settings.tsx'
 import { Login, SignUp } from './screens/Login.tsx'
@@ -47,7 +48,8 @@ export function App() {
 function TeacherMain({ session }: { session: Session | null }) {
   const [a, b, c, d, e] = useRoute()
   let screen: React.ReactNode
-  if (a === 't' && b) screen = <StudentPage key={b} id={b} />
+  if (a === 't' && b && c === 'w' && d) screen = <TeacherWriting key={d} studentId={b} id={d} />
+  else if (a === 't' && b) screen = <StudentPage key={b} id={b} />
   else if (a === 'settings') screen = <Settings session={session} />
   else if (a === 'l' && b && c) screen = <Lesson key={`${b}/${c}/${d ?? ''}/${e ?? ''}`} chapterId={b} lessonId={c} stage={d} sub={e} />
   else screen = <TeacherHome />
@@ -74,6 +76,9 @@ function Main({ session }: { session: Session | null }) {
   else if (a === 'test') screen = <WordTest />
   else if (a === 'part1') screen = <Part1 />
   else if (a === 'notes') screen = <Notes />
+  else if (a === 'talk' && b === 'write') screen = <TalkWrite />
+  else if (a === 'talk' && b === 'w' && c) screen = <TalkView key={c} id={c} />
+  else if (a === 'talk') screen = <TalkHome />
   else if (a === 'words' && b === 'new') screen = <WordForm key="new" />
   else if (a === 'words' && b === 'bulk') screen = <BulkAdd />
   else if (a === 'words' && b === 'edit' && c) screen = <WordForm key={c} id={c} />
@@ -82,7 +87,7 @@ function Main({ session }: { session: Session | null }) {
   else if (a === 'settings') screen = <Settings session={session} />
   else screen = <Home due={due} />
 
-  const active = a === 'test' || a === 'part1' ? 'review' : a === 'review' || a === 'words' || a === 'settings' ? a : a === 'l' ? 'l' : ''
+  const active = a === 'test' || a === 'part1' ? 'review' : a === 'review' || a === 'words' || a === 'talk' || a === 'settings' ? a : a === 'l' ? 'l' : ''
   return (
     <div className="app has-nav">
       <main>{screen}</main>
