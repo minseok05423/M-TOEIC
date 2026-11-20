@@ -18,6 +18,7 @@ import { Part1 } from './screens/Part1.tsx'
 import { Notes } from './screens/Notes.tsx'
 import { StudentPage, TeacherHome, TeacherWriting } from './screens/Teacher.tsx'
 import { TalkHome, TalkView, TalkWrite } from './screens/Talk.tsx'
+import { PhraseForm, PhraseLibrary, PhraseTest } from './screens/Phrases.tsx'
 import { isTeacher } from './lib/teacher.ts'
 import { Settings } from './screens/Settings.tsx'
 import { Login, SignUp } from './screens/Login.tsx'
@@ -76,6 +77,10 @@ function Main({ session }: { session: Session | null }) {
   else if (a === 'test') screen = <WordTest />
   else if (a === 'part1') screen = <Part1 />
   else if (a === 'notes') screen = <Notes />
+  else if (a === 'talk' && b === 'phrases' && c === 'new') screen = <PhraseForm key="new" />
+  else if (a === 'talk' && b === 'phrases' && c === 'edit' && d) screen = <PhraseForm key={d} id={d} />
+  else if (a === 'talk' && b === 'phrases' && c === 'test') screen = <PhraseTest key={d ?? ''} scope={d} />
+  else if (a === 'talk' && b === 'phrases') screen = <PhraseLibrary />
   else if (a === 'talk' && b === 'write') screen = <TalkWrite />
   else if (a === 'talk' && b === 'w' && c) screen = <TalkView key={c} id={c} />
   else if (a === 'talk') screen = <TalkHome />

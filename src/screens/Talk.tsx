@@ -7,6 +7,7 @@ import { formatDate } from '../lib/date.ts'
 import { href, replace } from '../lib/router.ts'
 import { TopBar } from '../components/TopBar.tsx'
 import { ReviewView } from '../components/ReviewView.tsx'
+import { PhraseHomeCard, WritingPhrases } from './Phrases.tsx'
 
 const STEPS = [
   { title: '영어로 쓰기', desc: '오늘 있었던 일, 5문장 이상' },
@@ -85,6 +86,8 @@ export function TalkHome() {
           </a>
         )}
       </section>
+
+      <PhraseHomeCard />
 
       {m.state === 'error' && (
         <div className="warn small">
@@ -288,6 +291,7 @@ export function TalkView({ id }: { id: string }) {
       {w ? (
         <>
           <ReviewView w={w} talk={talk} />
+          <WritingPhrases writing={w} />
           {!talk && (
             <div className="talk-next card">
               <MessagesSquare size={22} />

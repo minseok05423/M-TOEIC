@@ -18,7 +18,7 @@
  *                                         --date 는 단어 테스트가 "그날 넣은 단어"로 보는 날짜 (기본: 오늘). 이미 있는 영어 단어는 건너뜀
  *   words pos "영어=품사" [...]             품사 고치기 (예: words pos "place=동사 / 명사")
  *   writings [--days 14] [--user 이메일]   작문 + AI 검수: 글마다 점수·고칠 곳·오늘 기억할 것·프리토킹 여부,
- *                                         그리고 자주 나오는 실수 종류 (레슨 주제 고를 때). 이번 달 검수 비용
+ *                                         그리고 자주 나오는 실수 종류 (레슨 주제 고를 때), 표현집 테스트 결과, 이번 달 검수 비용
  *   words dupes [--apply]                  같은 영어 단어가 두 번 이상 있는 것 정리 (기본은 계획만 출력).
  *                                         복습 기록이 가장 많은 것을 남기고 품사·N일차 묶음을 채운 뒤, 나머지는 삭제 표시 (deleted, 되돌릴 수 있음)
  *
@@ -35,7 +35,8 @@ import { plainText, tapPlain } from '../src/content/markup.ts'
 import type { Chapter, Lesson, PersonalMeta } from '../src/content/types.ts'
 import type { LessonProgress, Progress, WordTestItem } from '../src/lib/store.ts'
 import { dueKey, lessonDue } from '../src/lib/analytics.ts'
-import type { Review } from '../supabase/functions/review-writing/review.ts'
+import { normalizeReview, type Review } from '../supabase/functions/review-writing/review.ts'
+import { buildLibrary, SOURCE_LABEL, status, weak } from '../src/lib/phrases.ts'
 
 for (const f of ['.env.local', '.env']) if (existsSync(f)) process.loadEnvFile(f)
 const url = process.env.VITE_SUPABASE_URL?.replace(/\/$/, '')
@@ -618,12 +619,37 @@ async function writings() {
     console.log(`실수 종류 (많은 순): ${[...kinds].sort((a, b) => b[1] - a[1]).map(([k, v]) => `${ISSUE[k] ?? k} ${v}`).join(' · ') || '없음'}`)
     console.log(`"오늘 기억할 것" 제목: ${[...focus].sort((a, b) => b[1] - a[1]).map(([k, v]) => (v > 1 ? `${k} ×${v}` : k)).join(' · ')}`)
   }
+  await phraseSummary(user.id)
   const now = new Date()
   const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString()
   const spent = await db.from('writings').select('cost_usd').gte('created_at', start)
   if (spent.error) die(spent.error.message)
   const usd = spent.data.reduce((a, r) => a + Number(r.cost_usd), 0)
   console.log(`\n이번 달 AI 검수 비용 (모든 학생): $${usd.toFixed(3)} · ${spent.data.length}편`)
+}
+
+/** 표현집 (회화 탭): 모든 작문의 표현 + 학생이 넣은 표현, 테스트 결과는 progress.phrases */
+async function phraseSummary(userId: string) {
+  const [w, p] = await Promise.all([
+    db.from('writings').select('id, day, topic, review, created_at').eq('user_id', userId),
+    db.from('progress').select('data').eq('user_id', userId).maybeSingle(),
+  ])
+  if (w.error) die(w.error.message)
+  if (p.error) die(p.error.message)
+  const pr = (p.data?.data ?? {}) as Progress
+  const cards = pr.phrases ?? {}
+  const lib = buildLibrary(w.data.map((x) => ({ ...x, review: normalizeReview(x.review) })), pr.myPhrases, cards)
+  const all = lib.shown
+  if (!all.length) return
+  const by = (k: string) => all.filter((x) => x.kind === k).length
+  const tested = all.filter((x) => cards[x.id]?.reps)
+  const reps = tested.reduce((a, x) => a + cards[x.id].reps, 0)
+  const counts = { new: 0, again: 0, learning: 0, known: 0 }
+  for (const x of all) counts[status(cards[x.id])]++
+  console.log(`\n## 표현집 — ${all.length}개 (${(['fix', 'better', 'useful', 'mine'] as const).map((k) => `${SOURCE_LABEL[k]} ${by(k)}`).join(' · ')})${lib.hidden.length ? ` · 숨김 ${lib.hidden.length}` : ''}`)
+  console.log(`테스트: ${tested.length}개 풀어 봄, 모두 ${reps}문제 · 새 표현 ${counts.new} · 다시 보기 ${counts.again} · 익히는 중 ${counts.learning} · 외움 ${counts.known}`)
+  const bad = all.filter((x) => weak(cards[x.id])).sort((a, b) => cards[b.id].lapses - cards[a.id].lapses)
+  if (bad.length) console.log(`자주 틀리는 표현:\n${bad.map((x) => `- ${x.en}${x.ko ? ` (${x.ko})` : ''} — 틀림 ${cards[x.id].lapses}번${x.wrong ? ` · 처음 쓴 것: ${x.wrong}` : ''}`).join('\n')}`)
 }
 
 const commands: Record<string, () => Promise<void>> = { notes, push, done, chapters, pull, rm, users, role, progress, tests, star, words, writings }

@@ -71,7 +71,7 @@ the machine, and the script never prints it.
 ```bash
 npm run teacher -- progress [--days 14]        # study days, lesson stages, quiz scores, words per day
 npm run teacher -- tests [--days 7]            # word test scores and words missed twice or more
-npm run teacher -- writings [--days 14]        # 회화 writings, common mistakes, this month's review cost
+npm run teacher -- writings [--days 14]        # 회화 writings, common mistakes, 표현집 tests, review cost
 npm run teacher -- notes                       # new student notes, with the content each points at
 npm run teacher -- done <note-id> --reply "…"  # answer a note without a new lesson
 npm run teacher -- push personal/<id>.ts       # check and upload a personal chapter
@@ -136,6 +136,24 @@ secrets:
 - `REVIEW_MONTHLY_USD`: for everyone combined, default 2.
 
 Deploy it with `verify_jwt: false` (it checks the login itself) and upload both files.
+
+### 표현집 and phrase tests
+
+Each review also returns 4–8 phrases in the same call (`review.phrases`): the student's mistakes
+first, then correct but unnatural phrases, then useful ones from the natural rewrite. Each has a
+Korean meaning, what the student wrote, why, the word to blank out and three wrong options. Writings
+reviewed before this get phrases from their corrected sentences, without a Korean meaning.
+
+- **표현집** (`#/talk/phrases`): every phrase, newest first, filtered by 틀린 표현, AI 추천,
+  내가 넣음 or 자주 틀림 (missed twice or more). The student can add their own and hide AI ones.
+- **표현 테스트** (`#/talk/phrases/test`): up to 10 phrases, due ones first, then new ones. Each
+  review page can also test just its own phrases. Questions get harder as a phrase is learned:
+  pick the right sentence or fill the blank from options, then put the words in order or type the
+  blank, then say it from the Korean and check yourself. Same intervals as words.
+
+Phrase test state and the student's own phrases are saved in the synced `progress` row
+(`progress.phrases`, `progress.myPhrases`), apart from the word `srs`. The logic is in
+`src/lib/phrases.ts`, with tests in `tests/phrases.test.ts`.
 
 ## Teacher account
 

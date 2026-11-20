@@ -6,6 +6,7 @@ import { formatDate, today } from '../lib/date.ts'
 import { href } from '../lib/router.ts'
 import { TopBar } from '../components/TopBar.tsx'
 import { ReviewView } from '../components/ReviewView.tsx'
+import { WritingPhrases } from './Phrases.tsx'
 import { saveTalk, useStudentWritings, type Writing } from '../lib/writing.ts'
 
 const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토']
@@ -488,6 +489,7 @@ export function TeacherWriting({ studentId, id }: { studentId: string; id: strin
         <>
           <TalkForm key={talk?.talked_at ?? 'new'} w={w} note={talk?.note ?? ''} done={!!talk} />
           <ReviewView w={w} teacher />
+          <WritingPhrases writing={w} teacher />
         </>
       )}
     </div>

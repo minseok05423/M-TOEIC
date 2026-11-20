@@ -13,12 +13,16 @@ export function mergeProgress(a: Progress, b: Partial<Progress> | null | undefin
   if (!b) return a
   const days = { ...a.days }
   for (const [k, v] of Object.entries(b.days ?? {})) days[k] = Math.max(days[k] ?? 0, v)
-  return {
+  const out: Progress = {
     ...emptyProgress(),
     lessons: byU(a.lessons, b.lessons),
     srs: byU(a.srs, b.srs),
     days,
   }
+  // 표현집: 둘 다 없으면 칸을 만들지 않음 (서버와 똑같은 모양 → 괜히 다시 올리지 않게)
+  if (a.phrases || b.phrases) out.phrases = byU(a.phrases ?? {}, b.phrases)
+  if (a.myPhrases || b.myPhrases) out.myPhrases = byU(a.myPhrases ?? {}, b.myPhrases)
+  return out
 }
 
 export function mergeWords(a: Record<string, CustomWord>, b: Record<string, CustomWord>): Record<string, CustomWord> {

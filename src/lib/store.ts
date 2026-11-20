@@ -23,6 +23,29 @@ export interface Progress {
   srs: Record<string, SrsCard>
   /** 'YYYY-MM-DD' → 그날 공부한 횟수 (연속 학습일 계산용) */
   days: Record<string, number>
+  /** 표현집(회화 탭) 테스트 기록. key: 표현 id (lib/phrases.ts). 단어 srs 와 따로 둬서 단어 통계에 안 섞임 */
+  phrases?: Record<string, PhraseCard>
+  /** 학생이 표현집에 직접 넣은 표현. key: id */
+  myPhrases?: Record<string, MyPhrase>
+}
+
+/** 표현 하나의 복습 상태 (단어와 같은 상자 방식) + 숨김 */
+export interface PhraseCard extends SrsCard {
+  /** 표현집에서 숨김 (AI 표현은 지울 수 없어서) */
+  hidden?: boolean
+}
+
+/** 학생이 직접 넣은 표현 */
+export interface MyPhrase {
+  id: string
+  en: string
+  ko: string
+  /** 내 메모 (언제 쓰는지 등) */
+  note?: string
+  createdAt: number
+  /** 마지막 수정 시각 (병합용) */
+  u: number
+  deleted?: boolean
 }
 
 /** 학생이 직접 추가한 단어 */
@@ -261,6 +284,47 @@ export function reviewWord(key: string, known: boolean) {
   }))
 }
 
+// ───────── 표현집 (회화 탭) ─────────
+
+/** 표현 테스트 한 문제 답함 → 상자 이동 + 공부한 날 */
+export function reviewPhrase(id: string, ok: boolean) {
+  setState((s) => {
+    const prev = s.progress.phrases?.[id]
+    const card: PhraseCard = { ...review(prev && prev.reps ? prev : undefined, ok), ...(prev?.hidden ? { hidden: true } : {}) }
+    return { ...s, progress: { ...s.progress, phrases: { ...s.progress.phrases, [id]: card }, days: bumpDay(s.progress) } }
+  })
+}
+
+/** 표현집에서 숨기기 / 다시 보이기 */
+export function hidePhrase(id: string, hidden: boolean) {
+  setState((s) => {
+    const prev = s.progress.phrases?.[id]
+    if (!!prev?.hidden === hidden) return s
+    const base: PhraseCard = prev ?? { box: 0, due: today(), reps: 0, lapses: 0, u: 0 }
+    const card: PhraseCard = { ...base, u: Date.now() }
+    if (hidden) card.hidden = true
+    else delete card.hidden
+    return { ...s, progress: { ...s.progress, phrases: { ...s.progress.phrases, [id]: card } } }
+  })
+}
+
+export function saveMyPhrase(p: { id?: string; en: string; ko: string; note?: string }): MyPhrase {
+  const now = Date.now()
+  const prev = p.id ? getState().progress.myPhrases?.[p.id] : undefined
+  const x: MyPhrase = { id: p.id ?? newId(), en: p.en.trim(), ko: p.ko.trim(), createdAt: prev?.createdAt ?? now, u: now }
+  if (p.note?.trim()) x.note = p.note.trim()
+  setState((s) => ({ ...s, progress: { ...s.progress, myPhrases: { ...s.progress.myPhrases, [x.id]: x } } }))
+  return x
+}
+
+export function deleteMyPhrase(id: string) {
+  setState((s) => {
+    const p = s.progress.myPhrases?.[id]
+    if (!p) return s
+    return { ...s, progress: { ...s.progress, myPhrases: { ...s.progress.myPhrases, [id]: { ...p, deleted: true, u: Date.now() } } } }
+  })
+}
+
 export function newId(): string {
   return crypto.randomUUID()
 }
@@ -322,7 +386,8 @@ export function setSettings(patch: Partial<Settings>) {
 }
 
 export function resetProgress() {
-  setState((s) => ({ ...s, progress: emptyProgress() }))
+  // 내가 넣은 표현은 기록이 아니라 내용이라 남겨 둠
+  setState((s) => ({ ...s, progress: { ...emptyProgress(), ...(s.progress.myPhrases ? { myPhrases: s.progress.myPhrases } : {}) } }))
 }
 
 export function addNote(n: Omit<LessonNote, 'id' | 'createdAt'>): LessonNote {
